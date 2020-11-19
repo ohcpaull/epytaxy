@@ -1,0 +1,25 @@
+setup.py
+PFM analysis/Fourier_transform.ipynb
+PFM analysis/PFM_Analysis.ipynb
+PFM analysis/.ipynb_checkpoints/PFM_Analysis-checkpoint.ipynb
+PFM analysis/data/P0125OP0000.h5
+PFM analysis/data/P0125OP0001.h5
+PFM analysis/data/P0125OP0002.h5
+PFM analysis/data/P0125OP0003.h5
+PFM analysis/data/P0125OP0004.h5
+PFM analysis/data/P0125OP0005.h5
+PFM analysis/data/P0125OP0006.h5
+PFM analysis/data/P0125OP0007.h5
+PFM analysis/data/P0142OP0000.h5
+PFM analysis/data/P0142OP0001.h5
+XRD analysis/PANalytical_1D_plot.ipynb
+XRD analysis/RSMview_v1.ipynb
+XRD analysis/Rigaku_1D_plot_and_gaussfit.ipynb
+XRD analysis/Rigaku_XRR_fitting.ipynb
+XRD analysis/.ipynb_checkpoints/RSMview_v1-checkpoint.ipynb
+XRD analysis/.ipynb_checkpoints/Rigaku_XRR_fitting-checkpoint.ipynb
+vlabs/__init__.py
+vlabs.egg-info/PKG-INFO
+vlabs.egg-info/SOURCES.txt
+vlabs.egg-info/dependency_links.txt
+vlabs.egg-info/top_level.txt
