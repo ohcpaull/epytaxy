@@ -22,7 +22,7 @@ rcParams.update({'figure.autolayout': True})
 
 #__all__ = ["lattice", "find_nearest"]
 
-class lattice(object):
+class RSMtools(object):
     
     def __init__(self, refHKL, iHKL, oHKL, substrateMat, filepath=None, **kwargs):
         # omega 2theta and data arrays. Omega and 2theta are 1D arrays while data is a 2D array with dimensions of omega and 2theta
@@ -196,14 +196,15 @@ class lattice(object):
 
     def to_csv(self, fname=None):
         if fname is None:
-            fname = 'some_placeholder.csv'
-        i = 0
-        j = 0
+            fname = self.filename + "_CSVoutput.csv"
 
-        np.savetxt(fname, list(zip(self.omega, self.tt, self.data)), delimiter=',')
+        tmp = np.array(
+            [self.omega.flatten(), 
+            self.tt.flatten(), 
+            self.data.flatten()]
+            )
+        np.savetxt(fname, tmp, delimiter=',')
         
-
-    
     def findSubstratePeak(self, axis1, axis2, data):
         ''' Returns indices of axis1 and axis2 where the substrate peak is positioned (based off maximum counts)'''
         maxIndex = np.argmax(data)
