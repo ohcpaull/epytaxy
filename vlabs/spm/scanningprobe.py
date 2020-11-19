@@ -1,37 +1,9 @@
-# Import packages
-
-# Ensure that this code works on both python 2 and python 3
-from __future__ import division, print_function, absolute_import, unicode_literals
-
-# basic numeric computation:
-import numpy as np
-
-# The package used for creating and manipulating HDF5 files:
-import h5py
-
-# Plotting and visualization:
-import matplotlib.pyplot as plt
-from matplotlib import gridspec
-import matplotlib.ticker as mpltick
-
-# for downloading files:
-import wget
 import os
-
-# multivariate analysis:
-from sklearn.cluster import KMeans
-from sklearn.decomposition import NMF
-import subprocess
-import sys
-
-def install(package):
-    subprocess.call([sys.executable, "-m", "pip", "install", package])
-# Package for downloading online files:
-# finally import pycroscopy:
+import h5py
 import pyUSID as usid
+import numpy as np
+import matplotlib.pyplot as plt
 import pycroscopy as px
-
-from pycroscopy.viz import cluster_utils
 
 
 def get_channels( file, fmt='raw' ):
@@ -66,7 +38,7 @@ def get_channels( file, fmt='raw' ):
     
     return [topo1, ampl1, phase1, ampl2, phase2]
     
-def single_image_plot(image, title, xvec, cmap=plt.cm.afmhot, zrange=None, axis=None, fig=None, posn=None, **kwargs):
+def single_image_plot(image, title, xvec, cmap=None, zrange=None, axis=None, fig=None, posn=None, **kwargs):
     if axis is None:
         fig, axis = plt.subplots()   
         #gs = gridspec.GridSpec(1)
@@ -88,8 +60,7 @@ def single_image_plot(image, title, xvec, cmap=plt.cm.afmhot, zrange=None, axis=
 
     return fig, axis
     
-    
-def multi_image_plot(images, experiment, titles=None, cmap=plt.cm.afmhot, 
+def multi_image_plot(images, experiment, titles=None, cmap=None, 
                      zrange=None, axis=None, fig=None,  gs=None, 
                      posn=None, ntick=4, **kwargs):
     """
@@ -122,7 +93,7 @@ def multi_image_plot(images, experiment, titles=None, cmap=plt.cm.afmhot,
     ph2 = ph1 + 360
     z_range = [ (-2, 2), (0, 0.7),(ph1,ph2) ] # Preset height, amplitude, and phase channel max/min
 
-    channel1 = [ t1, a1, p1 ]
+    #[t1, a1, p1, a2, p2] = images
     #channel2 = [ t1, a2, p2 ]
     titles = ['topo', 'ampl', 'phase']
     if axis is None:
@@ -130,7 +101,7 @@ def multi_image_plot(images, experiment, titles=None, cmap=plt.cm.afmhot,
         fig, axis = plt.subplots(nrows=1, ncols=3, figsize=(12,4))   
         gs = gridspec.GridSpec(1, 3)
 
-    xvec = np.linspace( 0, usid.hdf_utils.get_attributes(experiment[i]['Measurement_000'])['ScanSize']/10**(-6), len(images[0]))
+    xvec = np.linspace( 0, usid.hdf_utils.get_attributes(experiment['Measurement_000'])['ScanSize']/10**(-6), len(images[0]))
     axes = []
     if zrange is None:
         
@@ -161,12 +132,11 @@ def multi_image_plot(images, experiment, titles=None, cmap=plt.cm.afmhot,
 def convert_to_h5( directory ):
     trans = px.io.translators.igor_ibw.IgorIBWTranslator()
     c = 1
-    for file in os.listdir( diry ):
+    for file in os.listdir( directory ):
         if file.endswith(".ibw"):
-            tmp = trans.translate( diry + file)
+            tmp = trans.translate( directory + file)
             h5_file = h5py.File( tmp, mode='r' ) 
-            print(os.path.join( diry, file ) + " - " + str(c))
-            experiment.append( h5_file )
+            print(os.path.join( directory, file ) + " - " + str(c))
             h5_file.close()
             c = c + 1
     print('Completed')
@@ -174,7 +144,7 @@ def convert_to_h5( directory ):
     
 def load_files( directory ):
     
-    experiment = [ h5py.File( os.path.join(directory,file), mode='r' ) for file in os.listdir(diry) if file.endswith(".h5")]
-    filenames = [ file for file in os.listdir(diry) if file.endswith(".h5")]
+    experiment = [ h5py.File( os.path.join(directory,file), mode='r' ) for file in os.listdir(directory) if file.endswith(".h5")]
+    filenames = [ file for file in os.listdir(directory) if file.endswith(".h5")]
     
     return experiment, filenames
