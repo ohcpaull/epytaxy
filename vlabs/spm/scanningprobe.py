@@ -103,6 +103,38 @@ def multi_image_plot(images, experiment, titles=None, cmap=None,
 
     xvec = np.linspace( 0, usid.hdf_utils.get_attributes(experiment['Measurement_000'])['ScanSize']/10**(-6), len(images[0]))
     axes = []
+    topo, ampl, phase = images
+
+
+    ax1 = fig.add_subplot(gs[0])
+    usid.plot_utils.plot_map(
+        ax1, images[0]/10**(-9), stdevs=3, num_ticks=4, 
+        vmin=zrange[0][0], vmax=zrange[0][1], cmap=cmap, 
+        x_vec = xvec, y_vec = xvec
+        )
+    ax1.set_xlabel('X ($\mathrm{\mu}$m)')
+    ax1.set_ylabel('Y ($\mathrm{\mu}$m)')
+
+    ax2 = fig.add_subplot(gs[1])
+    usid.plot_utils.plot_map(
+        ax2, images[1]/10**(-12), stdevs=3, num_ticks=4, 
+        vmin=zrange[1][0], vmax=zrange[1][1], cmap=cmap, 
+        x_vec = xvec, y_vec=xvec
+        )
+    ax2.set_xlabel('X ($\mathrm{\mu}$m)')
+
+    ax3 = fig.add_subplot(gs[2])
+    usid.plot_utils.plot_map(
+        ax3, images[2], stdevs=3, num_ticks=4, 
+        vmin=zrange[2][0], vmax=zrange[2][1], cmap=cmap, 
+        x_vec = xvec, y_vec=xvec
+        )
+    ax3.set_xlabel('X ($\mathrm{\mu}$m)')
+
+    axes = [ax1, ax2, ax3]
+    return fig, axes
+
+'''
     if zrange is None:
         
         for pos, img, title in zip(gs, images, titles):
@@ -125,9 +157,8 @@ def multi_image_plot(images, experiment, titles=None, cmap=None,
             if pos == gs[0]:
                 axis.set_ylabel('Y ($\mathrm{\mu}$m)')
             axes.append(axis)
+'''
 
-
-    return fig, axes
 
 def convert_to_h5( directory ):
     trans = px.io.translators.igor_ibw.IgorIBWTranslator()

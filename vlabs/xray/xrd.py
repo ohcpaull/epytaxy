@@ -11,7 +11,6 @@ import os #this deals with file directories
 import xrayutilities as xu #this is the main package that is used
 import numpy as np #useful mathematics package
 import tkinter as tk #user interface for file IO
-import xrdtools #easy way for reading XRDML
 from tkinter import filedialog #file dialogue from TKinter
 import matplotlib.pyplot as plt #plotting package
 import matplotlib as mpl #plotting
