@@ -3,6 +3,7 @@ import h5py
 import pyUSID as usid
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 import pycroscopy as px
 
 
@@ -89,21 +90,23 @@ def multi_image_plot(images, experiment, titles=None, cmap=None,
     axes : 1D array_like of axes objects
         Axes of the individual plots within `fig`
     """
-    ph1 = -90
-    ph2 = ph1 + 360
-    z_range = [ (-2, 2), (0, 0.7),(ph1,ph2) ] # Preset height, amplitude, and phase channel max/min
+    if zrange is None:
+        ph1 = -90
+        ph2 = ph1 + 360
+        zrange = [ (-2, 2), (0, 200),(ph1,ph2) ] # Preset height, amplitude, and phase channel max/min
 
     #[t1, a1, p1, a2, p2] = images
     #channel2 = [ t1, a2, p2 ]
     titles = ['topo', 'ampl', 'phase']
+    topo, ampl, phase = images
     if axis is None:
 
         fig, axis = plt.subplots(nrows=1, ncols=3, figsize=(12,4))   
-        gs = gridspec.GridSpec(1, 3)
+        gs = GridSpec(1, 3)
 
-    xvec = np.linspace( 0, usid.hdf_utils.get_attributes(experiment['Measurement_000'])['ScanSize']/10**(-6), len(images[0]))
+    xvec = np.linspace( 0, usid.hdf_utils.get_attributes(experiment['Measurement_000'])['ScanSize']/10**(-6), len(topo))
     axes = []
-    topo, ampl, phase = images
+
 
 
     ax1 = fig.add_subplot(gs[0])
@@ -165,7 +168,7 @@ def convert_to_h5( directory ):
     c = 1
     for file in os.listdir( directory ):
         if file.endswith(".ibw"):
-            tmp = trans.translate( directory + file)
+            tmp = trans.translate( os.path.join(directory, file))
             h5_file = h5py.File( tmp, mode='r' ) 
             print(os.path.join( directory, file ) + " - " + str(c))
             h5_file.close()

@@ -16,6 +16,7 @@ XRD analysis/PANalytical_1D_plot.ipynb
 XRD analysis/RSMview_v1.ipynb
 XRD analysis/Rigaku_1D_plot_and_gaussfit.ipynb
 XRD analysis/Rigaku_XRR_fitting.ipynb
+XRD analysis/op18N012_XRR.xrdml
 XRD analysis/.ipynb_checkpoints/RSMview_v1-checkpoint.ipynb
 XRD analysis/.ipynb_checkpoints/Rigaku_XRR_fitting-checkpoint.ipynb
 vlabs/__init__.py
@@ -23,3 +24,15 @@ vlabs.egg-info/PKG-INFO
 vlabs.egg-info/SOURCES.txt
 vlabs.egg-info/dependency_links.txt
 vlabs.egg-info/top_level.txt
+vlabs/__pycache__/__init__.cpython-37.pyc
+vlabs/__pycache__/vlabs.cpython-37.pyc
+vlabs/spm/__init__.py
+vlabs/spm/scanningprobe.py
+vlabs/spm/__pycache__/__init__.cpython-37.pyc
+vlabs/spm/__pycache__/scanningprobe.cpython-37.pyc
+vlabs/xray/__init__.py
+vlabs/xray/xrd.py
+vlabs/xray/xrr.py
+vlabs/xray/__pycache__/__init__.cpython-37.pyc
+vlabs/xray/__pycache__/xrd.cpython-37.pyc
+vlabs/xray/__pycache__/xrr.cpython-37.pyc
