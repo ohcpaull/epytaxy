@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import pycroscopy as px
-from scipy.optimise import curve_fit
+from scipy.optimize import curve_fit
 
 
 class AsylumData(object):
@@ -44,12 +44,13 @@ class AsylumData(object):
                 "Frequency" : self.frequency
             }
         )
-
+        self.pos_max = usid.hdf_utils.get_attributes(self.file['Measurement_000'])['ScanSize']/10**(-6)
+        self.x_vec = np.linspace(0, self.pos_max, len(self.topography))
 
     def get_map_range(self, channel):
         # Check if channel is a string specifying the PFM channel to plot
         if type(channel) is str:
-            if channel is in self.channels.keys():
+            if channel in self.channels.keys():
                 data = self.channels[channel]
             else:
                 raise ValueError("Channel to plot needs to be one of {}".format(self.channels.keys()))
@@ -58,7 +59,8 @@ class AsylumData(object):
         elif isinstance(channel, np.ndarray):
             if channel in channels.values():
                 data = channel
-            else raise ValueError("Channel data does not match loaded channels in class!")
+            else:
+                raise ValueError("Channel data does not match loaded channels in class!")
 
         data_hist = np.hist(data)
 
@@ -106,7 +108,7 @@ class AsylumData(object):
     def single_image_plot(self, channel="Topography", cmap=None, zrange=None, axis=None, fig=None, **kwargs):
         # Check if channel is a string specifying the PFM channel to plot
         if type(channel) is str:
-            if channel is in self.channels.keys():
+            if channel in self.channels.keys():
                 data = self.channels[channel]
                 data_title = channel
             else:
@@ -117,7 +119,8 @@ class AsylumData(object):
             if channel in channels.values():
                 data = channel
                 data_title = self.channels.index(data)
-            else raise ValueError("Channel data does not match loaded channels in class!")
+            else:
+                raise ValueError("Channel data does not match loaded channels in class!")
 
 
         if axis is None:
@@ -125,13 +128,13 @@ class AsylumData(object):
 
         if zrange is None:
             
-            usid.plot_utils.plot_map(axis, data, cmap=cmap, x_vec = xvec, y_vec=xvec)
+            usid.plot_utils.plot_map(axis, data, cmap=cmap, x_vec = self.x_vec, y_vec= self.x_vec)
             #axis.set_title(title)    
             axis.set_xlabel('X ($\mathrm{\mu}$m)')
             axis.set_ylabel('Y ($\mathrm{\mu}$m)')
         else:
             
-            usid.plot_utils.plot_map(axis, data, cmap=cmap, vmin=zrange[0], vmax=zrange[1], x_vec = xvec, y_vec=xvec, **kwargs)
+            usid.plot_utils.plot_map(axis, data, cmap=cmap, vmin=zrange[0], vmax=zrange[1], x_vec = self.x_vec, y_vec=self.x_vec, **kwargs)
             #axis.set_title(title)        
             axis.set_xlabel('X ($\mathrm{\mu}$m)')
             axis.set_ylabel('Y ($\mathrm{\mu}$m)')
