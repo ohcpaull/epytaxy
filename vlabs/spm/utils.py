@@ -1,17 +1,48 @@
 import numpy as np
+import scipy
 # Curve fitting functions
 
 # gaussian function
 def gaussian(x, amp, mu, std, bg):
-    mu, std = norm.fit(hist_data) 
+    mu, std = scipy.stats.norm.fit(hist_data) 
     return amp*np.exp(-np.power(x - mu, 2)/(2 * np.power(std, 2))) + bg
 
 # skewed gaussian
 def skewed_gauss(x, amp, mu, std, alpha):
+    """
+    Skewed Gaussian function.
+
+    f(x) = ....
+
+    To get an educated guess of the skewness parameter alpha, use:
+
+    `alpha_guess = scipy.stats.skew(hist_data)` and use this in your 
+    initial parameters.
+    
+
+    Parameters
+    ----------
+    x       :   1D np.array
+            x-axis array of 
+
+    amp     :   float
+            Amplitude of function
+    mu      :   float
+            Peak centre of function
+    std     :   float
+            Standard deviation of function
+    alpha   :   float
+            Level of skewness of gaussian
+
+    Returns
+    ----------
+    output  :   numpy array
+            Array of values with length `len(x)`
+
+    """
     #normpdf = np.exp(-np.power(x - mu, 2)/(2 * np.power(std, 2)))
-    normpdf = (1/(std*np.sqrt(2*math.pi)))*np.exp(-(np.power((x-mu),2)/(2*np.power(std,2))))
-    normcdf = (0.5*(1+sp.erf((alpha*((x - mu)/std))/(np.sqrt(2)))))
-    alpha = skew(hist_data)
+    normpdf = (1/(std*np.sqrt(2*np.pi)))*np.exp(-(np.power((x-mu),2)/(2*np.power(std,2))))
+    normcdf = (0.5*(1+scipy.special.erf((alpha*((x - mu)/std))/(np.sqrt(2)))))
     return 2*amp*normpdf*normcdf
 
 # rayleigh distribution
