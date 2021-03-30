@@ -4,6 +4,34 @@ import scipy
 
 # gaussian function
 def gaussian(x, amp, mu, std, bg):
+    """
+    Gaussian function.
+
+    f(x) = amp * exp(-(x-mu)^2/(2*std)^2) + bg
+
+    To get an educated guess of the skewness parameter alpha, use:
+
+    `alpha_guess = scipy.stats.skew(hist_data)` and use this in your 
+    initial parameters.
+    
+    Parameters
+    ----------
+    x       :   1D np.array
+            x-axis array of 
+    amp     :   float
+            Amplitude of function
+    mu      :   float
+            Peak centre of function
+    std     :   float
+            Standard deviation of function
+
+
+    Returns
+    ----------
+    output  :   numpy array
+            Array of values with length `len(x)`
+
+    """
     mu, std = scipy.stats.norm.fit(hist_data) 
     return amp*np.exp(-np.power(x - mu, 2)/(2 * np.power(std, 2))) + bg
 
