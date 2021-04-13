@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import pycroscopy as px
 from scipy.optimize import curve_fit
-
+from ipywidgets import interact 
 
 class AsylumData(object):
     """
@@ -110,7 +110,8 @@ class AsylumData(object):
             return [topo1, ampl1, phase1, ampl2, phase2, frequency, topo2]
         
         return [topo1, ampl1, phase1, ampl2, phase2, frequency] 
-
+    
+    #@interact(channel=["Topography", "Amplitude_1", "Phase_1", "Amplitude_2", "Phase_2"])
     def single_image_plot(
         self, 
         channel="Topography", 
