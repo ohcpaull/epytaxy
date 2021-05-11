@@ -81,7 +81,7 @@ def rayleigh(x, amp, sigma, bg):
 def exp_dist(x, A, beta):
     return A * np.exp(-x/beta) 
 
-# lorentz distribution 
+# lorentz distribution
 def lorentz(x, amp, width, xc, bg):
     return amp*(1/np.pi) * (0.5 * width)/((x - xc)**2 + (0.5*width)**2)
 

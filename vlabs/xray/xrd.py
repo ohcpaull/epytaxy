@@ -375,3 +375,25 @@ class RSMtools(object):
                  yGrid, *fitParams)), 8, colors='k', linestyles='solid')
 
         return cl, fitParams, cov
+
+
+def ras_file( file ):
+    # Read RAS data to object
+    rasFile = xu.io.rigaku_ras.RASFile(file)
+        
+    self.scanaxis = rasFile.scans.scan_axis
+    self.stepSize = rasFile.scans.meas_step
+    self.measureSpeed= rasFile.scans.meas_speed
+    self.dataCount = rasFile.scans.length
+    # Read raw motor position and intensity data to large 1D arrays
+
+    ax1, data = xu.io.getras_scan(rasFile.filename+'%s', '', self.scanaxis)
+
+    npinte = np.array(data['int'])
+    
+    
+    # Read omega data from motor positions at the start of each 2theta-Omega scan
+    om = [rasFile.scans[i].init_mopo['Omega'] for i in range(0, len(rasFile.scans))]
+    # Convert 2theta-omega data to 1D array
+    
+    return (np.transpose(omga), np.transpose(tt), np.transpose(intensities))
