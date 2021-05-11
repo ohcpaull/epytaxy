@@ -7,6 +7,7 @@ from matplotlib.gridspec import GridSpec
 import pycroscopy as px
 from scipy.optimize import curve_fit
 from ipywidgets import interact 
+import ipywidgets as widgets
 
 class AsylumDART(object):
     """
@@ -602,3 +603,45 @@ def load_files( directory ):
     filenames = [ file for file in os.listdir(directory) if file.endswith(".h5")]
     
     return experiment, filenames
+
+def file_preview(directory):
+    """
+    handy function to plot Asylum data with dropdown menus
+
+    Parameters
+    ----------
+    directory   :   string or os.path
+                Directory to preview files in
+    
+
+    """
+    filenames = [os.path.join(directory, file) for file in os.listdir(directory) if file.endswith(".h5")]
+
+    def f(x, channel, **kwargs):
+        #fig, ax = plt.subplots(1,3, figsize=(20,8))
+
+        try:
+            scan = AsylumDART(x)
+            print("DART detected")
+            if channel == "Channel 1":
+                fig, ax = scan.multi_image_plot(
+                    ["Topography", "Amplitude_1", "Phase_1"],
+                    zrange=[(-2,2), (0,300), (0,360)]
+                )
+            elif channel == "Channel 2":
+                fig, ax = scan.multi_image_plot(
+                    ["Topography", "Amplitude_2", "Phase_2"],
+                    zrange=[(-2,2), (0,300), (0,360)]
+                )
+        except:
+            scan = AsylumSF(x)
+            print("SF detected")
+            fig, ax = scan.multi_image_plot(
+                    ["Topography", "Amplitude", "Phase"],
+                    zrange=[(-2,2), (0,300), (0,360)]
+            )
+        
+        
+        return fig, ax
+
+    widgets.interact(f, x=filenames, channel=["Channel 1", "Channel 2"])
