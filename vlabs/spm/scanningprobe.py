@@ -183,6 +183,59 @@ class AsylumDART(object):
 
         return fig, ax
 
+    def line_profile(self, channel):
+        fig, ax = self.single_image_plot(channel)
+        #pos = []
+        #def onclick(event):
+            #pos.append([event.xdata, event.ydata])
+
+            #xdata = event.xdata #/ len(self.channels[channel][0])
+            #ydata = event.ydata #/ len(self.channels[channel][0])
+            #print(xdata)
+            #print(ydata)
+            #ax.plot(xdata, ydata, "o")
+            
+
+        #fig.canvas.mpl_connect('button_press_event', onclick)
+        pos = []
+        px, py = [], []
+        
+
+        def onclick(event):
+            if len(pos) == 0:
+                # plot first scatter
+                scatter = plt.scatter(event.xdata, event.ydata)
+                pos.append(scatter)
+                px.append(event.xdata)
+                py.append(event.ydata)
+
+            elif len(pos) == 1:
+                # plot second scatter and line
+                scatter = plt.scatter(event.xdata, event.ydata)
+                pos.append(scatter)
+                px.append(event.xdata)
+                py.append(event.ydata)
+                x_values = [px[0], px[1]]
+                y_values = [py[0], py[1]]
+                line = plt.plot(x_values, y_values)
+
+            else:
+            # clear variables 
+                for scatter in pos:
+                    scatter.remove()
+                
+                px.clear()
+                py.clear()
+                pos.clear()
+                
+            fig.canvas.draw()
+    
+        cid = fig.canvas.mpl_connect('button_press_event', onclick)
+        plt.show()
+
+        
+
+
     def multi_image_plot(self, channels, titles=None, cmap=None, 
                      zrange=None, axis=None, fig=None,  gs=None, 
                      posn=None, ntick=4, **kwargs):
@@ -612,6 +665,13 @@ def file_preview(directory):
     ----------
     directory   :   string or os.path
                 Directory to preview files in
+    
+    Returns
+    --------- 
+    fig : Figure
+            Figure of the plots that can be toggled using dropdown menus
+    ax : 1D array_like of axes objects
+            Axes of the individual plots within `fig`
     
 
     """
