@@ -198,7 +198,7 @@ class AsylumDART(object):
 
         #fig.canvas.mpl_connect('button_press_event', onclick)
         pos = []
-        px, py = [], []
+        self.px, self.py = [], []
         
 
         def onclick(event):
@@ -206,17 +206,17 @@ class AsylumDART(object):
                 # plot first scatter
                 scatter = plt.scatter(event.xdata, event.ydata)
                 pos.append(scatter)
-                px.append(event.xdata)
-                py.append(event.ydata)
+                self.px.append(event.xdata)
+                self.py.append(event.ydata)
 
             elif len(pos) == 1:
                 # plot second scatter and line
                 scatter = plt.scatter(event.xdata, event.ydata)
                 pos.append(scatter)
-                px.append(event.xdata)
-                py.append(event.ydata)
-                x_values = [px[0], px[1]]
-                y_values = [py[0], py[1]]
+                self.px.append(event.xdata)
+                self.py.append(event.ydata)
+                x_values = [self.px[0], self.px[1]]
+                y_values = [self.py[0], self.py[1]]
                 line = plt.plot(x_values, y_values)
 
             else:
@@ -224,8 +224,8 @@ class AsylumDART(object):
                 for scatter in pos:
                     scatter.remove()
                 
-                px.clear()
-                py.clear()
+                self.px.clear()
+                self.py.clear()
                 pos.clear()
                 
             fig.canvas.draw()
