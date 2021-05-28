@@ -3,6 +3,7 @@ from vlabs.spm.scanningprobe import (
     AsylumSF,
     convert_to_h5,
     load_files,
+    file_preview,
 )
 
 from vlabs.spm.utils import (
