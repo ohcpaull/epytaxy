@@ -7,7 +7,9 @@ from matplotlib.gridspec import GridSpec
 import pycroscopy as px
 from scipy.optimize import curve_fit
 from ipywidgets import interact 
+
 import ipywidgets as widgets
+import skimage.feature
 
 class AsylumDART(object):
     """
@@ -31,6 +33,7 @@ class AsylumDART(object):
         
         self.filename = os.path.basename(fname)
         d = self._get_channels(fmt="arr")
+        self.channel_edges = {}
         self.topography = d[0].T
         self.amplitude_1 = d[1].T
         self.amplitude_2 = d[2].T
@@ -47,8 +50,9 @@ class AsylumDART(object):
                 "Frequency" : self.frequency
             }
         )
+        self.axis_length = len(self.topography)
         self.pos_max = usid.hdf_utils.get_attributes(self.file['Measurement_000'])['ScanSize']/10**(-6)
-        self.x_vec = np.linspace(0, self.pos_max, len(self.topography))
+        self.x_vec = np.linspace(0, self.pos_max, self.axis_length)
         self.mask = None
 
     def get_map_range(self, channel):
@@ -350,6 +354,35 @@ class AsylumDART(object):
 
         axes = [ax1, ax2, ax3]
         return fig, axes
+
+    def edge_detection(self, channel, sigma, low_threshold, high_threshold):
+        # Check if channel is a string specifying the PFM channel to plot
+        if type(channel) is str:
+            if channel in self.channels.keys():
+                data = self.channels[channel]
+                data_title = channel
+                print(data_title)
+            else:
+                raise ValueError("Channel to plot needs to be one of {}".format(self.channels.keys()))
+
+        # Check if it is the data array of the PFM channel to plot 
+        elif isinstance(channel, np.ndarray):
+            for ch in self.channels:
+                if channel == self.channels[ch]:
+                    data_title = ch
+                    print(data_title)
+                    data = channel
+
+
+        edges = skimage.feature.canny(
+            image=data,
+            sigma=sigma,
+            low_threshold=low_threshold,
+            high_threshold=high_threshold,
+        )
+
+        self.channel_edges[data_title] = np.ma.masked_array(np.zeros((self.axis_length,self.axis_length)), np.invert(edges))
+
 
 
 
