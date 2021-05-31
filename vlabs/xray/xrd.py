@@ -14,7 +14,10 @@ import tkinter as tk #user interface for file IO
 from tkinter import filedialog #file dialogue from TKinter
 import matplotlib.pyplot as plt #plotting package
 import matplotlib as mpl #plotting
-from matplotlib import rcParams
+from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+from matplotlib import rcParams, cm
+import xrdtools
+
 rcParams.update({'figure.autolayout': True})
 #%matplotlib notebook
 #%matplotlib inline
@@ -44,14 +47,14 @@ class RSMtools(object):
         self.rsmRef = refHKL
         self.axisraw = []
         self.omega1D = []
-            
+        self.multi_file = False
+        
         [self.substrate, self.hxrd] = self.initialise_substrate( wavelength='CuKa12', **kwargs )
 
         if filepath:
             self.load_sub( filepath )
 
-
-    def load_sub( self, filepath = None, refHKL = None ):
+    def load_sub( self, filepath = None):
 
         self.filepath = filepath
         if filepath is None:
@@ -62,28 +65,58 @@ class RSMtools(object):
         self.filename = self.filepath[(a+1):(b)]
 
         if ext == 'xrdml':
-            (self.omega, self.tt, self.data) = self.xrdml_file(self, self.filepath)
+            (omega, tt, data) = self.xrdml_file(self, self.filepath)
+            self.omega.append(omega)
+            self.tt.append(tt)
+            self.data.append(data)
         elif ext == 'ras':
-            (self.omega, self.tt, self.data) = self.ras_file(self, self.filepath)
+            (omega, tt, data) = self.ras_file(self, self.filepath)
+            self.omega.append(omega)
+            self.tt.append(tt)
+            self.data.append(data)
         else:
-            print('filetype not supported.')
-        if refHKL is None:    
-            self.p, [self.qx, self.qy, self.qz] = self.align_sub_peak()
-        else:
-            self.p, [self.qx, self.qy, self.qz] = self.align_sub_peak( refHKL )
+            print('filetype not supported.') 
+        self.p, [qx, qy, qz] = self.align_sub_peak()
+        self.qx.append(qx)
+        self.qy.append(qy)
+        self.qz.append(qz)
 
-    def load_film( self, filepath = None ):
+
+    def load_film( self, filepath=None, delta=None ):
+        """
+        Load film RSM file separately from substrate
+
+        Applies same experimental offset as substrate file
+
+        Parameters
+        ----------
+        filepath    :   str
+                filepath to film RSM file
+        """
+        self.multi_file = True
+
         if filepath is None:
             film_file = self.openDialogue()
         else:
             film_file = filepath
-        b = film_file.index('.') # find the period that separates filename and extension
-        ext = film_file[(b+1):] # get extension and determine whether it is RAS or XRDML
-        a = film_file.rfind('/')  # find the period that separates the directory and filename
-        (f_omega, f_tt, f_data) = self.xrdml_file( self, film_file )
+        if filepath.endswith(".xrdml"):
+            (f_omega, f_tt, f_data) = self.xrdml_file( self, film_file )
+        elif filepath.endswith(".ras"):
+            (f_omega, f_tt, f_data) = self.ras_file( self, film_file )
+            
+        self.omega.append(f_omega)
+        self.tt.append(f_tt)
+        self.data.append(f_data)
+
+        if not delta:
+            delta = self.delta
+        qx, qy, qz = self.hxrd.Ang2Q(f_omega, f_tt, delta=[delta[0], delta[1]])
+        self.qx.append(qx)
+        self.qy.append(qy)
+        self.qz.append(qz)
+        
         return f_omega, f_tt, f_data
 
-        
     @staticmethod
     def xrdml_file(self, file):
         data = xrdtools.read_xrdml(file)
@@ -160,18 +193,48 @@ class RSMtools(object):
         return ax
     
     def plotQ(self, xGrid, yGrid, dynLow, dynHigh, fig=None, ax=None, nlev = None, show_title=False, axlabels='hkl', **kwargs):
+        """
+        Plots X-ray diffraction mesh scan in reciprocal space. 
+        First needs to nonlinearly regrid the angular data into reciprocal space
+        and plot this.
+
+        Parameters
+        ----------
+        xGrid   :   int
+                number of x bins for regridding data
+        yGrid   :   int
+                number of y bins for regridding data
+        dynLow  :   float
+                soft lower limit for intensity colorscale. Equivalent to 10^-(dynLow)
+        dynHigh :   float
+                soft upper limit for intensity colorscale. Equivalent to 10^(dynHigh)
+        """
         if ax is None or fig is None:
             fig, ax = plt.subplots()
 
         if show_title == True:
             ax.set_title( self.filename )
-        
+
+        if "cmap" not in kwargs.keys():
+            # Generate new colormap for RSM display
+            rainbow = cm.get_cmap('magma_r', 256)
+            newcolors = rainbow(np.linspace(0, 1, 256))
+            white = np.array([1, 1, 1, 1])
+            newcolors[:20, :] = white
+            kwargs["cmap"] = ListedColormap(newcolors)
         
         self.gridder = xu.Gridder2D(xGrid,yGrid)
-        self.gridder(self.qy, self.qz, self.data)
-        intHigh = np.argmax(self.data)
-        intMin = np.argmin(self.data)
+
+        x = np.concatenate(self.qy).ravel()
+        y = np.concatenate(self.qz).ravel()
+        z = np.concatenate(self.data).ravel()
+
+        self.gridder(x,y,z)
+        intHigh = np.argmax(z)
+        intMin = np.argmin(z)
         dynhigh = np.rint(np.log10(intHigh))
+
+
 
         INT = xu.maplog(self.gridder.data, dynLow, dynHigh)
         levels = np.linspace(1, dynhigh, num=20)
@@ -268,18 +331,18 @@ class RSMtools(object):
         self.maxInt = indexMax
 
         data = np.array(self.data)
-        tupleIndex = np.unravel_index( indexMax, (len(self.data[:,0]), len(self.data[0,:])) )
+        tupleIndex = np.unravel_index( indexMax, (len(self.data[0][:,0]), len(self.data[0][0,:])) )
         
         
         [self.theoOm, dummy, dummy, self.theoTT] = self.hxrd.Q2Ang(self.substrate.Q(self.rsmRef))
-        expTT = self.tt[tupleIndex[0],tupleIndex[1]]
-        expOm = self.omega[tupleIndex[0],tupleIndex[1]]
+        expTT = self.tt[0][tupleIndex[0],tupleIndex[1]]
+        expOm = self.omega[0][tupleIndex[0],tupleIndex[1]]
         print('experimental omega = ' + str(expOm))
         print('experimental tt = ' + str(expTT))
         print('theoretical omega = ' + str(self.theoOm))
         print('theoretical 2theta = ' + str(self.theoTT))
 
-        expOm, expTT, p, cov = xu.analysis.fit_bragg_peak( self.omega, self.tt, self.data, expOm, expTT, self.hxrd, plot=False)
+        expOm, expTT, p, cov = xu.analysis.fit_bragg_peak( self.omega[0], self.tt[0], self.data[0], expOm, expTT, self.hxrd, plot=False)
         
         offset = (self.theoTT/2) + self.theoOm
         omnominal = (self.theoTT/2) + offset
@@ -293,7 +356,7 @@ class RSMtools(object):
         
         
 
-        [qx, qy, qz] = self.hxrd.Ang2Q(self.omega, self.tt, delta=[expOm - self.theoOm, expTT - self.theoTT] )
+        [qx, qy, qz] = self.hxrd.Ang2Q(self.omega[0], self.tt[0], delta=[expOm - self.theoOm, expTT - self.theoTT] )
         
         return p, [qx, qy, qz]
 
@@ -381,19 +444,19 @@ def ras_file( file ):
     # Read RAS data to object
     rasFile = xu.io.rigaku_ras.RASFile(file)
         
-    self.scanaxis = rasFile.scans.scan_axis
-    self.stepSize = rasFile.scans.meas_step
-    self.measureSpeed= rasFile.scans.meas_speed
-    self.dataCount = rasFile.scans.length
+    scan_axis = rasFile.scans.scan_axis
+    step_size = rasFile.scans.meas_step
+    measure_speed= rasFile.scans.meas_speed
+    data_count = rasFile.scans.length
     # Read raw motor position and intensity data to large 1D arrays
 
-    ax1, data = xu.io.getras_scan(rasFile.filename+'%s', '', self.scanaxis)
+    ax1, data = xu.io.getras_scan(rasFile.filename+'%s', '', scan_axis)
 
-    npinte = np.array(data['int'])
+    intensity = np.array(data['int'])
     
     
     # Read omega data from motor positions at the start of each 2theta-Omega scan
-    om = [rasFile.scans[i].init_mopo['Omega'] for i in range(0, len(rasFile.scans))]
+    omega = [rasFile.scans[i].init_mopo['Omega'] for i in range(0, len(rasFile.scans))]
     # Convert 2theta-omega data to 1D array
     
     return (np.transpose(omga), np.transpose(tt), np.transpose(intensities))
