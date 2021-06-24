@@ -1,5 +1,6 @@
 import numpy as np
 import scipy
+from matplotlib.patches import ConnectionPatch
 
 
 def _line_profile_coordinates(src, dst, linewidth=1):
@@ -45,7 +46,95 @@ def _line_profile_coordinates(src, dst, linewidth=1):
                                     linewidth) for col_i in line_col])
     return np.stack([perp_rows, perp_cols])
 
+
+class LineProfile:
+    """
+    Class for taking an arbitrary line profile of a 2D dataset. This can be for
+    the case of a scanning probe line profile, or a X-ray diffraction reciprocal 
+    space map along an arbitrary or crystallographic direction.
+
+    Parameters
+    ----------
+
+
+    Attributes
+    ----------
+
+        - p_i       :   tuple, (initial x pixel, initial y pixel)
+            Initial pixel points for line profile
+        - p_f       :   tuple, (final x pixel, final y pixel)
+            Final pixel points for the line profile
+        - px_width  :   int
+            Width in pixels for the line profile to integrate over. 
+        - px_dist   :   int
+            Length of the line profile in pixels
+        
+    """
+
+    def __init__(self, p_i, p_f, width, ):
+        self.p_i = p_i
+        self.p_f = p_f
+        
+        self.px_width = width
+        self.ln_width_i = None
+        self.ln_width_f = None
+
+        # Find distance in pixels of line profile
+        self.px_dist = int(np.round(np.hypot(self.p_f[0] - self.p_i[0], self.p_f[1] - self.p_i[0])))
+        # Calculate the angle the line makes with the x-axis
+        self.line_vec = np.array([self.p_f[0] - self.p_i[0], self.p_f[1] - self.p_i[1]])
+
+        self.angle = np.angle(self.line_vec[0] + self.line_vec[1]*1j, deg=False) 
+
+        # Calculate the offset in X and Y for the linewidth start
+        # and end points at the start point for the line profile
+        self.xyA_i = (
+            (self.p_i[0] - width/2 * np.sin(self.angle)),
+            (self.p_i[1] + width/2 * np.cos(self.angle)),
+        )
+        self.xyB_i = (
+            (self.p_i[0] + width/2 * np.sin(self.angle)),
+            (self.p_i[1] - width/2 * np.cos(self.angle)),
+        )
+
+        self.cpatch_i = ConnectionPatch(
+            xyA=self.xyA_i,
+            xyB=self.xyB_i,
+            coordsA="data",
+            coordsB="data",
+        )
+        
+        self.cpatch_line = ConnectionPatch(
+            xyA=self.p_i,
+            xyB=self.p_f,
+            coordsA="data",
+            coordsB="data",
+        )
+
+        self.xyA_f = (
+            (self.p_f[0] - width/2 * np.sin(self.angle)),
+            (self.p_f[1] + width/2 * np.cos(self.angle)),
+        )
+        self.xyB_f = (
+            (self.p_f[0] + width/2 * np.sin(self.angle)),
+            (self.p_f[1] - width/2 * np.cos(self.angle)),
+        )
+
+        self.cpatch_f = ConnectionPatch(
+            xyA=self.xyA_f,
+            xyB=self.xyB_f,
+            coordsA="data",
+            coordsB="data",
+        )
+    def plot_over_channel(self, axis):
+        
+        
+        axis.add_artist(self.cpatch_i)
+        axis.add_artist(self.cpatch_line)
+        axis.add_artist(self.cpatch_f)
+        return axis
     
+
 # Curve fitting functions
 
 # gaussian function

@@ -14,6 +14,8 @@ from skimage.measure import profile_line
 
 from matplotlib.patches import ConnectionPatch
 
+from vlabs.spm.igor_ibw import IgorIBWTranslator
+
 from vlabs.spm.utils import(
     gaussian,
     skewed_gauss,
@@ -42,6 +44,57 @@ class AsylumDART(object):
     data_dir    :   str, optional
         The data folder where the file is located
 
+    Attributes
+    ----------
+    filename        :   str
+        Name of Asylum DART file that has been read
+    axis_length     :   int
+        Length (in pixels) of each axis of the scan. TODO: Assumes a 
+        square scan and should be generalised throughout this class to 
+        treat x and y independently.
+    pos_max         :   numpy.float64
+        The size of the scan. Assumes a square scansize.
+    x_vec           :   numpy.ndarray
+        A 1D array with length ``axis_length`` to define the x and y axes
+        of the ``matplotlib.pypot.imshow`` maps
+    
+    Channels
+    --------
+        - topography    :   numpy.ndarray
+            Topography channel in Asylum DART .h5 file
+        - amplitude_1   :   numpy.ndarray
+            Amplitude channel for the first drive frequency in the DART file.
+        - phase_1       :   numpy.ndarray
+            Phase channel for the first drive frequency in the DART file.
+        - amplitude_2   :   numpy.ndarray
+            Amplitude channel for the second drive frequency in the DART file.
+        - phase_2       :   numpy.ndarray
+            Phase channel for the second drive frequency in the DART file.
+        - frequency     :   numpy.ndarray
+            Frequency channel for the DART file.
+    
+    - channels      :   dict
+        A dictionary with all the channels in the file (for ease-of-use).
+            "Topography"    :   AsylumDART.topography
+            "Amplitude_1"   :   AsylumDART.amplitude_1
+            "Phase_1"       :   AsylumDART.phase_1
+            "Amplitude_2"   :   AsylumDART.amplitude_2
+            "Phase_2"       :   AsylumDART.phase_2
+            "Frequency"     :   AsylumDART.frequency
+    
+    - line_slice    :   dict
+        A dictionary with possible line profiles for each channel
+            "Topography"    :   numpy.ndarray or None
+            "Amplitude_1"   :   numpy.ndarray or None
+            "Phase_1"       :   numpy.ndarray or None
+            "Amplitude_2"   :   numpy.ndarray or None
+            "Phase_2"       :   numpy.ndarray or None
+            "Frequency"     :   numpy.ndarray or None
+    
+    - channel_edges :   dict
+        A dictionary of 2D arrays for each channel that are populated after
+        using ``AsylumDART.edge_detection``
+    
     
     """
 
@@ -74,6 +127,30 @@ class AsylumDART(object):
             }
         )
         self.line_slice =  {
+            "Topography" : None,
+            "Amplitude_1" : None,
+            "Amplitude_2" : None,
+            "Phase_1" : None,
+            "Phase_2" : None,
+            "Frequency" : None
+        }
+        self.px = {            
+            "Topography" : [],
+            "Amplitude_1" : [],
+            "Amplitude_2" : [],
+            "Phase_1" : [],
+            "Phase_2" : [],
+            "Frequency" : [],
+        }
+        self.py = {
+            "Topography" : [],
+            "Amplitude_1" : [],
+            "Amplitude_2" : [],
+            "Phase_1" : [],
+            "Phase_2" : [],
+            "Frequency" : [],
+        }
+        self.line_profile_x = {
             "Topography" : None,
             "Amplitude_1" : None,
             "Amplitude_2" : None,
@@ -201,7 +278,6 @@ class AsylumDART(object):
         
         return [topo1, ampl1, phase1, ampl2, phase2, frequency] 
     
-    #@interact(channel=["Topography", "Amplitude_1", "Phase_1", "Amplitude_2", "Phase_2"])
     def single_image_plot(
         self, 
         channel="Topography", 
@@ -319,34 +395,35 @@ class AsylumDART(object):
         pos = []
         line = []
         perp1, perp2 = [], []
-        self.px, self.py = [], []
         self.xyA, self.xyB = (), ()
         # Convert width between nanometres and pixels
         width = int(np.round(width / 1000 / self.pos_max * self.axis_length))
-
+        
 
         def onclick(event):
             if len(pos) == 0:
                 # plot first scatter
                 scatter = ax[0].scatter(event.xdata, event.ydata, s=5, color="black")
                 pos.append(scatter)
-                self.px.append(event.xdata)
-                self.py.append(event.ydata)
+                self.px[channel].append(event.xdata)
+                self.py[channel].append(event.ydata)
 
             elif len(pos) == 1:
                 # plot second scatter and line
                 scatter = ax[0].scatter(event.xdata, event.ydata, s=5, color="black")
                 pos.append(scatter)
-                self.px.append(event.xdata)
-                self.py.append(event.ydata)
-                x_values = [self.px[0], self.px[1]]
-                y_values = [self.py[0], self.py[1]]
+                self.px[channel].append(event.xdata)
+                self.py[channel].append(event.ydata)
+                x_values = [self.px[channel][0], self.px[channel][1]]
+                y_values = [self.py[channel][0], self.py[channel][1]]
                 ln = ax[0].plot(x_values, y_values, "-", color="black")
                 line.append(ln.pop(0))
                 # Plot line profile of data
                 
                 # Get distance of line profile in pixels
-                self.distance = int(np.hypot(x_values[1]-x_values[0], y_values[1]-y_values[0])) 
+                pix_dist = int(np.hypot(x_values[1]-x_values[0], y_values[1]-y_values[0])) 
+
+                sample_distance = pix_dist / self.axis_length * self.pos_max
                 # Use skimage.measure.profile_line to slice the data  between selected
                 # pixels, with given width.
                 self.line_slice[channel] = profile_line(
@@ -356,11 +433,11 @@ class AsylumDART(object):
                     linewidth = width,
                 ) 
 
-                line_profile_x = np.linspace(0, self.distance / self.axis_length * self.pos_max, len(self.line_slice[channel]))
+                self.line_profile_x[channel] = np.linspace(0, sample_distance, len(self.line_slice[channel]))
 
                 # Plot line profile in adjacent subplot
                 ax[1].plot(
-                    line_profile_x,
+                    self.line_profile_x[channel],
                     self.line_slice[channel] / factor,
                     color="black",
                     label=f"{channel} line profile",
@@ -423,8 +500,8 @@ class AsylumDART(object):
                 for scatter in pos:
                     scatter.remove()
                 
-                self.px.clear()
-                self.py.clear()
+                self.px[channel].clear()
+                self.py[channel].clear()
                 pos.clear()
                 ax[1].clear()
                 line[0].remove()
@@ -588,8 +665,6 @@ class AsylumDART(object):
         )
 
         self.channel_edges[data_title] = np.ma.masked_array(np.zeros((self.axis_length,self.axis_length)), np.invert(edges))
-
-
 
 
 class AsylumSF(object):
@@ -879,7 +954,7 @@ class AsylumSF(object):
 
 
 def convert_to_h5( directory ):
-    trans = px.io.translators.igor_ibw.IgorIBWTranslator()
+    trans = IgorIBWTranslator()
     c = 1
     for file in os.listdir( directory ):
         if file.endswith(".ibw"):

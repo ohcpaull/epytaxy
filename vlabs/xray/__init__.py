@@ -1,5 +1,7 @@
 from vlabs.xray.xrd import (
-    RSMtools
+    RSMtools,
+    ras_file,
+    xrdml_file,
 )
 from vlabs.xray.xrr import (
     reduce_xray,

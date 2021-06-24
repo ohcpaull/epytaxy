@@ -440,23 +440,62 @@ class RSMtools(object):
         return cl, fitParams, cov
 
 
-def ras_file( file ):
+def ras_file(file):
+    """
+    Reads a Rigaku RAS file 
+    """
+
     # Read RAS data to object
-    rasFile = xu.io.rigaku_ras.RASFile(file)
-        
-    scan_axis = rasFile.scans.scan_axis
-    step_size = rasFile.scans.meas_step
-    measure_speed= rasFile.scans.meas_speed
-    data_count = rasFile.scans.length
+    ras_file = xu.io.rigaku_ras.RASFile(file)
+
+    d = {
+        "scan_axis" : ras_file.scans[0].scan_axis,
+        "step_size" : ras_file.scans[0].meas_step,
+        "speed"     : ras_file.scans[0].meas_speed,
+        "length"    : ras_file.scans[0].length,
+    }
+    
     # Read raw motor position and intensity data to large 1D arrays
-
-    ax1, data = xu.io.getras_scan(rasFile.filename+'%s', '', scan_axis)
-
-    intensity = np.array(data['int'])
+    
+    ax1, data = xu.io.getras_scan(ras_file.filename+'%s', '', d["scan_axis"])
+    
+    #d["int"] = np.array(data["int"])
+    #d["att"] = np.array(data["att"])
+    d["counts"] = np.array(data["int"]) * np.array(data["att"])
+    d["2theta"] = np.array(data["TwoThetaOmega"])
     
     
     # Read omega data from motor positions at the start of each 2theta-Omega scan
-    omega = [rasFile.scans[i].init_mopo['Omega'] for i in range(0, len(rasFile.scans))]
-    # Convert 2theta-omega data to 1D array
-    
-    return (np.transpose(omga), np.transpose(tt), np.transpose(intensities))
+    d["omega"] = np.array([ras_file.scans[i].init_mopo['Omega'] for i in range(len(ras_file.scans))])
+
+    return d
+
+def xrdml_file(file):
+        """
+        Reads a PANAlytical XRDML file
+
+        Parameters
+        ---------
+        file    :   str
+            Filepath to .xrdml file
+
+        Returns
+        ---------
+        d       :   dict
+            A dictionary that holds
+                - 2theta
+                - omega
+                - int
+                - 
+        """
+        d = {}
+        data = xrdtools.read_xrdml(file)
+
+        d["2theta"]
+
+        d = {
+        "scan_axis" : ras_file.scans[0].scan_axis,
+        "step_size" : ras_file.scans[0].meas_step,
+        "speed"     : ras_file.scans[0].meas_speed,
+        "length"    : ras_file.scans[0].length,
+    }
