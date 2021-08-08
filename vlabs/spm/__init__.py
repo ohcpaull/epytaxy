@@ -4,6 +4,7 @@ from vlabs.spm.scanningprobe import (
     convert_to_h5,
     load_files,
     file_preview,
+    edge_detection_widget,
 )
 
 from vlabs.spm.utils import (
@@ -20,4 +21,8 @@ from vlabs.spm.utils import (
     log,
     sine,
     cosine,
+)
+
+from vlabs.spm.igor_ibw import (
+    IgorIBWTranslator
 )

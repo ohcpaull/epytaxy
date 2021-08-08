@@ -6,11 +6,12 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 import pycroscopy as px
 from scipy.optimize import curve_fit
+import scipy
 from ipywidgets import interact 
 
 import ipywidgets as widgets
 import skimage.feature
-from skimage.measure import profile_line
+
 
 from matplotlib.patches import ConnectionPatch
 
@@ -30,6 +31,7 @@ from vlabs.spm.utils import(
     log,
     sine,
     cosine,
+    LineProfile,
 )
 
 
@@ -116,6 +118,16 @@ class AsylumDART(object):
         self.phase_1 = d[3].T
         self.phase_2 = d[4].T
         self.frequency = d[5].T
+        self.factors = dict(
+            {
+                "Topography" : 1e-9,
+                "Amplitude_1" : 1e-12,
+                "Amplitude_2" : 1e-12,
+                "Phase_1" : 1,
+                "Phase_2" : 1,
+                "Frequency" : 1,
+            }
+        )
         self.channels = dict(
             {
                 "Topography" : self.topography,
@@ -204,33 +216,37 @@ class AsylumDART(object):
                 raise ValueError("Channel data does not match loaded channels in class!")
 
         # Take histogram of data and determine height and centre of histogram. 
+        d = scipy.stats.describe(data.flatten())
+
 
         counts, bin_edges = np.histogram(data.flatten(), bins=200)
         bin_centres = np.array([0.5 * (bin_edges[i] + bin_edges[i+1]) for i in range(len(bin_edges)-1)])
         centre = bin_centres[np.argmax(counts)]
         amp = max(counts)
-        p0 = [amp, centre, centre, 1e-8]
+        
         # If channel is phase, return standard phase range
         if "Phase" in channel:
-            return (0,360)
+            func = gaussian
+            #phase_hist = np.histogram(self.channels[channel])
+
+            zmin = 0
+            zmax = 360
+
         # If channel is amplitude, change fitting function to skewed gauss
         if "Amplitude" in channel:
-            func=skewed_gauss
-            p0 = [amp, centre, 1e-10, 0]
+            zmin = 0
+            zmax = nsig * d.mean
+        elif "Topography" in channel:
+            p0 = [amp, centre, centre, 1e-8]
             popt, _ = curve_fit(func, bin_centres, counts, p0=p0)
-            centre = popt[1]
             width = popt[2]
-            return (0, centre + 2*width)
-
-        popt, _ = curve_fit(func, bin_centres, counts, p0=p0)
-
-        centre = popt[1]
-        width = popt[2]
-        if plot:
-            fig, ax = plt.subplots()
-            _ = ax.hist(data.flatten(), bins=200)
-            ax.plot(bin_centres, func(bin_centres, *popt))
-        return (-nsig*width, nsig*width)
+            zmin = -nsig * width
+            zmax = nsig * width
+        #if plot:
+        #    fig, ax = plt.subplots()
+        #    _ = ax.hist(data.flatten(), bins=200)
+        #    ax.plot(bin_centres, func(bin_centres, *popt))
+        return (zmin, zmax)
 
     def apply_mask(self, channel, threshold):
         """
@@ -337,19 +353,19 @@ class AsylumDART(object):
             fig, ax = plt.subplots(figsize=(3,3))   
 
         if zrange is None:
-            (zmin, zmax) = self.get_map_range(channel, channel_dict[channel], **kwargs)
-            usid.plot_utils.plot_map(ax, data/factor, cmap=cmap, cbar_label=units, vmin=zmin/factor, vmax=zmax/factor, x_vec = self.x_vec, y_vec= self.x_vec)
+            (zmin, zmax) = self.get_map_range(channel, channel_dict[channel])
+            imhandle, cbar = usid.plot_utils.plot_map(ax, data/factor, cmap=cmap, cbar_label=units, vmin=zmin/factor, vmax=zmax/factor, x_vec = self.x_vec, y_vec= self.x_vec, **kwargs)
             #axis.set_title(title)    
             ax.set_xlabel('X ($\\mathrm{\\mu}$m)')
             ax.set_ylabel('Y ($\\mathrm{\\mu}$m)')
         else:
             
-            usid.plot_utils.plot_map(ax, data/factor, cmap=cmap, cbar_label=units, vmin=zrange[0], vmax=zrange[1], x_vec = self.x_vec, y_vec=self.x_vec, **kwargs)
+            imhandle, cbar = usid.plot_utils.plot_map(ax, data/factor, cmap=cmap, cbar_label=units, vmin=zrange[0], vmax=zrange[1], x_vec = self.x_vec, y_vec=self.x_vec, **kwargs)
             #axis.set_title(title)        
             ax.set_xlabel('X ($\\mathrm{\\mu}$m)')
             ax.set_ylabel('Y ($\\mathrm{\\mu}$m)')
-
-        return fig, ax
+        
+        return fig, ax, imhandle
 
     def line_profile(self, channel, width=50.0, **kwargs):
         """
@@ -390,15 +406,14 @@ class AsylumDART(object):
 
         fig, ax = plt.subplots(1,2)
         
-        fig, ax[0] = self.single_image_plot(channel, fig=fig, ax=ax[0], **kwargs)
+        fig, ax[0], im = self.single_image_plot(channel, fig=fig, ax=ax[0], **kwargs)
 
         pos = []
         line = []
-        perp1, perp2 = [], []
         self.xyA, self.xyB = (), ()
         # Convert width between nanometres and pixels
         width = int(np.round(width / 1000 / self.pos_max * self.axis_length))
-        
+
 
         def onclick(event):
             if len(pos) == 0:
@@ -416,85 +431,41 @@ class AsylumDART(object):
                 self.py[channel].append(event.ydata)
                 x_values = [self.px[channel][0], self.px[channel][1]]
                 y_values = [self.py[channel][0], self.py[channel][1]]
-                ln = ax[0].plot(x_values, y_values, "-", color="black")
-                line.append(ln.pop(0))
-                # Plot line profile of data
-                
-                # Get distance of line profile in pixels
-                pix_dist = int(np.hypot(x_values[1]-x_values[0], y_values[1]-y_values[0])) 
 
-                sample_distance = pix_dist / self.axis_length * self.pos_max
-                # Use skimage.measure.profile_line to slice the data  between selected
-                # pixels, with given width.
-                self.line_slice[channel] = profile_line(
-                    self.channels[channel].T,
+                # Plot line profile of data
+                lp = LineProfile(
                     (x_values[0], y_values[0]),
                     (x_values[1], y_values[1]),
-                    linewidth = width,
-                ) 
+                    width=width,
+                )
 
-                self.line_profile_x[channel] = np.linspace(0, sample_distance, len(self.line_slice[channel]))
+
+                lp.cut_channel(self.channels[channel])
+                line.append(lp.cpatch_line)
+                line.append(lp.cpatch_i)
+                line.append(lp.cpatch_f)
+
+
+                diff_x = (lp.px_f[0] - lp.px_i[0]) / self.axis_length * self.pos_max
+                diff_y = (lp.px_f[1] - lp.px_i[1]) / self.axis_length * self.pos_max
+                sample_distance = np.hypot(diff_x, diff_y)
+
+                lp.s_dist = np.linspace(0, sample_distance, len(lp.line_profile))
 
                 # Plot line profile in adjacent subplot
                 ax[1].plot(
-                    self.line_profile_x[channel],
-                    self.line_slice[channel] / factor,
+                    lp.s_dist,
+                    lp.line_profile / factor,
                     color="black",
                     label=f"{channel} line profile",
                 )
                 ax[1].set(xlabel="Distance ($\\mathrm{\\mu}}$m)", ylabel=f"{zlabel} ({units})")
-                line_vec = np.array([x_values[1] - x_values[0], y_values[1] - y_values[0]])
-                #perp_vec = (-y_values[1] + y_values[0], x_values[1] - x_values[0]) / self.axis_length * self.pos_max
-
-                # Find angle between the specified line and the x-axis
-                angle_x = np.angle(line_vec[0] + line_vec[1]*1j, deg=False)
-
-                xy_i = (x_values[0], y_values[0])
-                xy_f = (x_values[1], y_values[1])
-
-                # Calculate the offset in X and Y for the linewidth start
-                # and end points at the start point for the line profile
-                self.xyA_i = (
-                    (xy_i[0] - width/2 * np.sin(angle_x)),
-                    (xy_i[1] + width/2 * np.cos(angle_x)),
-                )
-                self.xyB_i = (
-                    (xy_i[0] + width/2 * np.sin(angle_x)),
-                    (xy_i[1] - width/2 * np.cos(angle_x)),
-                )
-
-                p1 = ConnectionPatch(
-                    xyA=self.xyA_i,
-                    xyB=self.xyB_i,
-                    coordsA="data",
-                    coordsB="data",
-                    axesA=ax[0],
-                    axesB=ax[0],
-                )
-                perp1.append(p1)
-                ax[0].add_artist(p1)
-
-                # Calculate the offset in X and Y for the linewidth start
-                # and end points at the end point for the line profile
-                self.xyA_f = (
-                    (xy_f[0] - width/2 * np.sin(angle_x)),
-                    (xy_f[1] + width/2 * np.cos(angle_x)),
-                )
-                self.xyB_f = (
-                    (xy_f[0] + width/2 * np.sin(angle_x)),
-                    (xy_f[1] - width/2 * np.cos(angle_x)),
-                )
                 
-                p2 = ConnectionPatch(
-                    xyA=self.xyA_f,
-                    xyB=self.xyB_f,
-                    coordsA="data",
-                    coordsB="data",
-                    axesA=ax[0],
-                    axesB=ax[0],
-                )
-                perp2.append(p2)
-                ax[0].add_artist(p2)
+                # Plot line and width 
+                lp._plot_over_channel(ax[0])
+                self.line_slice[channel] = lp
+
+                
             else:
             # clear variables 
                 for scatter in pos:
@@ -505,11 +476,11 @@ class AsylumDART(object):
                 pos.clear()
                 ax[1].clear()
                 line[0].remove()
+                line[1].remove()
+                line[2].remove()
                 line.clear()
-                perp1[0].remove()
-                perp2[0].remove()
-                perp1.clear()
-                perp2.clear()
+
+
 
             fig.canvas.draw()
     
@@ -546,9 +517,16 @@ class AsylumDART(object):
             Axes of the individual plots within `fig`
         """
         channel_dict = {
-            "Topography" : gaussian,
-            "Amplitude_1" : skewed_gauss,
-            "Phase_1"     : None,
+            channels[0] : gaussian,
+            channels[1] : skewed_gauss,
+            channels[2]     : None,
+        }
+        ch_factors = {
+            "Topography" : 1e-9,
+            "Amplitude_1": 1e-12,
+            "Phase_1"    : 1,
+            "Amplitude_2": 1e-12,
+            "Phase_2"    : 1,
         }
         for channel in channels:
             if type(channel) is str:
@@ -566,20 +544,14 @@ class AsylumDART(object):
                 else:
                     raise ValueError("Channel data does not match loaded channels in class!")
         
-        factors = [1, 1, 1]
-        for idx, channel in enumerate(channels):
-            if channel == "Topography":
-                factors[idx] = 1e-9
-            elif channel in ["Amplitude_1", "Amplitude_2"]:
-                factors[idx] = 1e-12
 
         if zrange is None:
-            (zmin, zmax) = self.get_map_range("Topography", channel_dict["Topography"])
-            (amin, amax) = self.get_map_range("Amplitude_1", channel_dict["Amplitude_1"])
-            (pmin, pmax) = self.get_map_range("Phase_1")
-            ph1 = -90
-            ph2 = ph1 + 360
-            zrange = [ (zmin, zmax), (0, amax), (pmin,pmax) ] # Preset height, amplitude, and phase channel max/min
+            zrange = {
+                channels[0]       :   self.get_map_range(channels[0], channel_dict[channels[0]]),
+                channels[1]       :   self.get_map_range(channels[1], channel_dict[channels[1]]),
+                channels[2]       :   self.get_map_range(channels[2]),
+            }
+            #zrange = [ (zmin, zmax), (0, amax), (pmin,pmax) ] # Preset height, amplitude, and phase channel max/min
 
         #[t1, a1, p1, a2, p2] = images
         #channel2 = [ t1, a2, p2 ]
@@ -592,50 +564,22 @@ class AsylumDART(object):
 
         
         axes = []
-        ax1 = fig.add_subplot(gs[0])
-        usid.plot_utils.plot_map(
-            ax1, 
-            self.channels[channels[0]]/factors[0], 
-            num_ticks=4, 
-            vmin=zrange[0][0],
-            vmax=zrange[0][1],
-            cmap=cmap, 
-            x_vec = self.x_vec, 
-            y_vec = self.x_vec,
-            **kwargs,
-        )
-        ax1.set_xlabel('X ($\mathrm{\mu}$m)')
-        ax1.set_ylabel('Y ($\mathrm{\mu}$m)')
+        for idx, ch in enumerate(channels):
+            print(type(zrange[ch][0]))
+            axes.append(fig.add_subplot(gs[idx]))
+            usid.plot_utils.plot_map(
+                axes[idx],
+                self.channels[ch]/ch_factors[ch],
+                num_ticks=3,
+                vmin=zrange[ch][0]/ch_factors[ch],
+                vmax=zrange[ch][1]/ch_factors[ch],
+                cmap=cmap,
+                x_vec=self.x_vec,
+                y_vec=self.x_vec,
+                **kwargs
+            )
+            axes[idx].set(xlabel="X ($\mathrm{\mu}$m)", ylabel="Y ($\mathrm{\mu}$m)")
 
-        ax2 = fig.add_subplot(gs[1])
-        usid.plot_utils.plot_map(
-            ax2, 
-            self.channels[channels[1]]/factors[1], 
-            num_ticks=4, 
-            vmin=zrange[1][0], 
-            vmax=zrange[1][1], 
-            cmap=cmap, 
-            x_vec = self.x_vec, 
-            y_vec=self.x_vec,
-            **kwargs,
-        )
-        ax2.set_xlabel('X ($\mathrm{\mu}$m)')
-
-        ax3 = fig.add_subplot(gs[2])
-        usid.plot_utils.plot_map(
-            ax3, 
-            self.channels[channels[2]]/factors[2], 
-            num_ticks=4, 
-            vmin=zrange[2][0], 
-            vmax=zrange[2][1], 
-            cmap=cmap, 
-            x_vec = self.x_vec,
-            y_vec=self.x_vec,
-            **kwargs,
-        )
-        ax3.set_xlabel('X ($\mathrm{\mu}$m)')
-
-        axes = [ax1, ax2, ax3]
         return fig, axes
 
     def edge_detection(self, channel, sigma, low_threshold, high_threshold):
@@ -705,7 +649,30 @@ class AsylumSF(object):
         self.x_vec = np.linspace(0, self.pos_max, len(self.topography))
         self.mask = None
 
-    def get_map_range(self, channel, func=gaussian):
+    def get_map_range(self, channel, func=gaussian, plot=False, nsig=4):
+        """
+        Fits the histogram of a given data channel with a given function and returns
+        an appropriate minimum and maximum range based on the width of the histogram peak.
+
+        Parameters
+        ----------
+        channel :   str or nd.array
+            Data channel to get the range from. If channel is a str, 
+            then it must be the name of a data channel in the Asylum file
+        func    :   obj, optional
+            Function object to describe the histogram of the data channel
+        plot    :   bool, optional
+            Plots histogram and fitted ``func`` to the data
+        nsig    :   float
+            Number of standard deviations to allow on either side of the
+            centre from the fitted data histogram. 
+
+        Returns
+        ---------
+        zmin, zmax  :   tuple
+            A tuple that describes the minimum and maximum z-values for
+            the data channel
+        """
         # Check if channel is a string specifying the PFM channel to plot
         if type(channel) is str:
             if channel in self.channels.keys():
@@ -720,9 +687,34 @@ class AsylumSF(object):
             else:
                 raise ValueError("Channel data does not match loaded channels in class!")
 
-        data_hist = np.hist(data)
+        # Take histogram of data and determine height and centre of histogram. 
 
-        popt, pcov = curve_fit()
+        counts, bin_edges = np.histogram(data.flatten(), bins=200)
+        bin_centres = np.array([0.5 * (bin_edges[i] + bin_edges[i+1]) for i in range(len(bin_edges)-1)])
+        centre = bin_centres[np.argmax(counts)]
+        amp = max(counts)
+        p0 = [amp, centre, centre, 1e-8]
+        # If channel is phase, return standard phase range
+        if "Phase" in channel:
+            return (0,360)
+        # If channel is amplitude, change fitting function to skewed gauss
+        if "Amplitude" in channel:
+            func=skewed_gauss
+            p0 = [amp, centre, 1e-10, 0]
+            popt, _ = curve_fit(func, bin_centres, counts, p0=p0)
+            centre = popt[1]
+            width = popt[2]
+            return (0, centre + 2*width)
+
+        popt, _ = curve_fit(func, bin_centres, counts, p0=p0)
+
+        centre = popt[1]
+        width = popt[2]
+        if plot:
+            fig, ax = plt.subplots()
+            _ = ax.hist(data.flatten(), bins=200)
+            ax.plot(bin_centres, func(bin_centres, *popt))
+        return (-nsig*width, nsig*width)
 
     def apply_mask(self, channel, threshold):
         """
@@ -864,7 +856,16 @@ class AsylumSF(object):
         axes : 1D array_like of axes objects
             Axes of the individual plots within `fig`
         """
-
+        channel_dict = {
+            "Topography" : gaussian,
+            "Amplitude" : skewed_gauss,
+            "Phase"     : None,
+        }
+        ch_factors = {
+            "Topography" : 1e-9,
+            "Amplitude": 1e-12,
+            "Phase"    : 1,
+        }
         for channel in channels:
             if type(channel) is str:
                 if channel in self.channels.keys():
@@ -881,19 +882,14 @@ class AsylumSF(object):
                 else:
                     raise ValueError("Channel data does not match loaded channels in class!")
         
-        factors = [1, 1, 1]
-        for idx, channel in enumerate(channels):
-            if channel == "Topography":
-                factors[idx] = 1e-9
-            elif channel == "Amplitude":
-                factors[idx] = 1e-12
-            elif channel == "Phase":
-                factors[idx] = 1e-9
 
         if zrange is None:
-            ph1 = -90
-            ph2 = ph1 + 360
-            zrange = [ (-15, 15), (0, max(self.channels[channels[1]].flatten())/factors[1]), (ph1,ph2) ] # Preset height, amplitude, and phase channel max/min
+            zrange = {
+                "Topography"    :   self.get_map_range("Topography", channel_dict["Topography"]),
+                "Amplitude"   :   self.get_map_range("Amplitude", channel_dict["Amplitude"]),
+                "Phase"       :   self.get_map_range("Phase"),
+            }
+            #zrange = [ (zmin, zmax), (0, amax), (pmin,pmax) ] # Preset height, amplitude, and phase channel max/min
 
         #[t1, a1, p1, a2, p2] = images
         #channel2 = [ t1, a2, p2 ]
@@ -906,54 +902,54 @@ class AsylumSF(object):
 
         
         axes = []
-        ax1 = fig.add_subplot(gs[0])
-        usid.plot_utils.plot_map(
-            ax1, 
-            self.channels[channels[0]]/factors[0], 
-            num_ticks=4, 
-            vmin=zrange[0][0],
-            vmax=zrange[0][1],
-            cmap=cmap, 
-            x_vec = self.x_vec, 
-            y_vec = self.x_vec,
-            **kwargs,
-        )
-        ax1.set_xlabel('X ($\mathrm{\mu}$m)')
-        ax1.set_ylabel('Y ($\mathrm{\mu}$m)')
+        for idx, ch in enumerate(channels):
 
-        ax2 = fig.add_subplot(gs[1])
-        usid.plot_utils.plot_map(
-            ax2, 
-            self.channels[channels[1]]/factors[1], 
-            num_ticks=4, 
-            vmin=zrange[1][0], 
-            vmax=zrange[1][1], 
-            cmap=cmap, 
-            x_vec = self.x_vec, 
-            y_vec=self.x_vec,
-            **kwargs,
-        )
-        ax2.set_xlabel('X ($\mathrm{\mu}$m)')
+            axes.append(fig.add_subplot(gs[idx]))
+            usid.plot_utils.plot_map(
+                axes[idx],
+                self.channels[ch]/ch_factors[ch],
+                num_ticks=3,
+                vmin=zrange[ch][0],
+                vmax=zrange[ch][1],
+                cmap=cmap,
+                x_vec=self.x_vec,
+                y_vec=self.y_vec,
+                **kwargs
+            )
+            axes[idx].set(xlabel="X ($\mathrm{\mu}$m)", ylabel="Y ($\mathrm{\mu}$m)")
 
-        ax3 = fig.add_subplot(gs[2])
-        usid.plot_utils.plot_map(
-            ax3, 
-            self.channels[channels[2]]/factors[2], 
-            num_ticks=4, 
-            vmin=zrange[2][0], 
-            vmax=zrange[2][1], 
-            cmap=cmap, 
-            x_vec = self.x_vec,
-            y_vec=self.x_vec,
-            **kwargs,
-        )
-        ax3.set_xlabel('X ($\mathrm{\mu}$m)')
-
-        axes = [ax1, ax2, ax3]
         return fig, axes
 
+    def edge_detection(self, channel, sigma, low_threshold, high_threshold):
+        # Check if channel is a string specifying the PFM channel to plot
+        if type(channel) is str:
+            if channel in self.channels.keys():
+                data = self.channels[channel]
+                data_title = channel
+                print(data_title)
+            else:
+                raise ValueError("Channel to plot needs to be one of {}".format(self.channels.keys()))
 
-def convert_to_h5( directory ):
+        # Check if it is the data array of the PFM channel to plot 
+        elif isinstance(channel, np.ndarray):
+            for ch in self.channels:
+                if channel == self.channels[ch]:
+                    data_title = ch
+                    print(data_title)
+                    data = channel
+
+
+        edges = skimage.feature.canny(
+            image=data,
+            sigma=sigma,
+            low_threshold=low_threshold,
+            high_threshold=high_threshold,
+        )
+
+        self.channel_edges[data_title] = np.ma.masked_array(np.zeros((self.axis_length,self.axis_length)), np.invert(edges))
+
+
+def convert_to_h5(directory):
     trans = IgorIBWTranslator()
     c = 1
     for file in os.listdir( directory ):
@@ -992,12 +988,13 @@ def file_preview(directory, **kwargs):
 
     """
     filenames = [os.path.join(directory, file) for file in os.listdir(directory) if file.endswith(".h5")]
-
-    def f(x, channel, **kwargs):
+    bnames = [os.path.basename(f) for f in filenames]
+    print(bnames)
+    def f(x, channel, fdir, **kwargs):
         #fig, ax = plt.subplots(1,3, figsize=(20,8))
 
         try:
-            scan = AsylumDART(x)
+            scan = AsylumDART(os.path.join(fdir, x))
             print("DART detected")
             if channel == "Channel 1":
                 fig, ax = scan.multi_image_plot(
@@ -1020,4 +1017,84 @@ def file_preview(directory, **kwargs):
         
         return fig, ax
 
-    widgets.interact(f, x=filenames, channel=["Channel 1", "Channel 2"], **kwargs)
+    widgets.interact(f, x=bnames, channel=["Channel 1", "Channel 2"], fdir=directory, **kwargs)
+
+def edge_detection_widget(
+    data, 
+    channel, 
+    zrange=None, 
+    sigmainit = 0.2,
+    lowthresinit = -0.1,
+    highthresinit = 0.1,
+    **kwargs
+    ):
+    """
+    Interactive plotting of a PFM channel where the ranges
+    and smoothing of the edge detection can be quickly optimised.
+
+    Parameters
+    ----------
+    data       :   AsylumDART or AsylumSF object
+        PFM file object to use in interactive plotting
+    channel :   str
+        Channel in AsylumDART or AsylumSF object to plot with
+        edge detection.
+    zrange  :   tuple, optional
+        zmin and zmax for plotting the data channel. This also specifies the
+        range of the lower and upper limits of the `skimage.feature.canny`
+        edge detection
+    """
+    global d
+    d = data
+    global ch
+    ch = channel
+
+    if "cmap" not in kwargs.keys():
+        kwargs.update({"cmap" : "afmhot"})
+    
+    if zrange is None:
+        zrange = d.get_map_range(ch, nsig=5)
+    (zmin, zmax) = zrange
+
+    fig, ax = plt.subplots(figsize=(5,5))
+    fig, ax, im = d.single_image_plot(ch, fig=fig, ax=ax, zrange=zrange, **kwargs)
+
+    edges = skimage.feature.canny(
+        image=d.channels[ch]/d.factors[ch],
+        sigma= sigmainit,
+        low_threshold=lowthresinit,
+        high_threshold=highthresinit,
+        )
+    edges = np.invert(edges)
+    masked_d = np.ma.masked_array(np.zeros((d.axis_length,d.axis_length)), edges)
+    #d = np.ma.masked_where(edges == False,  np.zeros((512,512)))
+
+    ax.imshow( masked_d, cmap="binary_r", interpolation = 'none')
+
+    #ax_sigma = plt.axes([0.15, 0.05, 0.65, 0.03])
+    sigma_slider = widgets.FloatSlider(description = 'sigma',
+                    min = 0, max = 10, value = sigmainit)
+    low_threshold_slider = widgets.FloatSlider(description = 'low threshold',
+                    min = zmin, max = zmax, step=0.01, value = lowthresinit)
+    high_threshold_slider = widgets.FloatSlider(description = 'high threshold',
+                    min = zmin, max = zmax , step=0.01, value = highthresinit)
+
+
+    def update(sigma, low_threshold, high_threshold):
+        ax.clear()
+        _ = d.single_image_plot(ch, fig=fig, ax=ax, cmap=cmap, show_cbar=False)
+        edges = skimage.feature.canny(
+            image=d.channels[ch]/d.factors[ch],
+            sigma= sigma,
+            low_threshold=low_threshold,
+            high_threshold=high_threshold,
+        )
+        
+        d = np.ma.masked_where(edges == False,  np.zeros((512,512)))
+        ax.imshow(d, cmap="binary_r", interpolation = 'none')
+
+
+    widgets.interact(update, sigma = sigma_slider, 
+                        low_threshold = low_threshold_slider,
+                        high_threshold = high_threshold_slider)
+        

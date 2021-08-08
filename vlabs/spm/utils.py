@@ -1,7 +1,7 @@
 import numpy as np
 import scipy
 from matplotlib.patches import ConnectionPatch
-
+from skimage.measure import profile_line
 
 def _line_profile_coordinates(src, dst, linewidth=1):
     """Return the coordinates of the profile of an image along a scan line.
@@ -71,30 +71,28 @@ class LineProfile:
         
     """
 
-    def __init__(self, p_i, p_f, width, ):
-        self.p_i = p_i
-        self.p_f = p_f
-        
+    def __init__(self, px_i, px_f, width):
+        self.px_i = px_i
+        self.px_f = px_f        
         self.px_width = width
-        self.ln_width_i = None
-        self.ln_width_f = None
 
         # Find distance in pixels of line profile
-        self.px_dist = int(np.round(np.hypot(self.p_f[0] - self.p_i[0], self.p_f[1] - self.p_i[0])))
+        self.px_dist = int(np.round(np.hypot(self.px_f[0] - self.px_i[0], self.px_f[1] - self.px_i[1])))
+        self.s_dist = None
         # Calculate the angle the line makes with the x-axis
-        self.line_vec = np.array([self.p_f[0] - self.p_i[0], self.p_f[1] - self.p_i[1]])
+        self.line_vec = np.array([self.px_f[0] - self.px_i[0], self.px_f[1] - self.px_i[1]])
 
         self.angle = np.angle(self.line_vec[0] + self.line_vec[1]*1j, deg=False) 
 
         # Calculate the offset in X and Y for the linewidth start
         # and end points at the start point for the line profile
         self.xyA_i = (
-            (self.p_i[0] - width/2 * np.sin(self.angle)),
-            (self.p_i[1] + width/2 * np.cos(self.angle)),
+            (self.px_i[0] - width/2 * np.sin(self.angle)),
+            (self.px_i[1] + width/2 * np.cos(self.angle)),
         )
         self.xyB_i = (
-            (self.p_i[0] + width/2 * np.sin(self.angle)),
-            (self.p_i[1] - width/2 * np.cos(self.angle)),
+            (self.px_i[0] + width/2 * np.sin(self.angle)),
+            (self.px_i[1] - width/2 * np.cos(self.angle)),
         )
 
         self.cpatch_i = ConnectionPatch(
@@ -105,19 +103,19 @@ class LineProfile:
         )
         
         self.cpatch_line = ConnectionPatch(
-            xyA=self.p_i,
-            xyB=self.p_f,
+            xyA=self.px_i,
+            xyB=self.px_f,
             coordsA="data",
             coordsB="data",
         )
 
         self.xyA_f = (
-            (self.p_f[0] - width/2 * np.sin(self.angle)),
-            (self.p_f[1] + width/2 * np.cos(self.angle)),
+            (self.px_f[0] - width/2 * np.sin(self.angle)),
+            (self.px_f[1] + width/2 * np.cos(self.angle)),
         )
         self.xyB_f = (
-            (self.p_f[0] + width/2 * np.sin(self.angle)),
-            (self.p_f[1] - width/2 * np.cos(self.angle)),
+            (self.px_f[0] + width/2 * np.sin(self.angle)),
+            (self.px_f[1] - width/2 * np.cos(self.angle)),
         )
 
         self.cpatch_f = ConnectionPatch(
@@ -126,12 +124,77 @@ class LineProfile:
             coordsA="data",
             coordsB="data",
         )
-    def plot_over_channel(self, axis):
+
+    def __len__(self):
+        return print(f"Length = {self.px_dist} pixels\nWidth = {self.px_width} pixels")
+
+    def cut_channel(self, channel_data):
+
+        self.line_profile = profile_line(
+            channel_data.T,
+            self.px_i,
+            self.px_f,
+            linewidth = self.px_width,
+        )
+
+    def _plot_over_channel(self, axis):
         
+        y_min, y_max = axis.get_ylim()
+        yrange = y_max - y_min
+
+        x_min, x_max = axis.get_xlim()
+        xrange = x_max - x_min
         
+        for (x, y) in [self.xyA_i, self.xyB_i, self.xyA_f, self.xyB_f, self.px_i, self.px_f]:
+            if x > xrange:
+                raise RuntimeError("Coordinates of line slice are outside the"\
+                    "coordinates of the axis."
+                )
+            elif y > yrange:
+                raise RuntimeError("Coordinates of line slice are outside the"\
+                    "coordinates of the axis."
+                )
+
         axis.add_artist(self.cpatch_i)
         axis.add_artist(self.cpatch_line)
         axis.add_artist(self.cpatch_f)
+        return axis
+
+    def plot_over_channel(self, axis):
+        
+        y_min, y_max = axis.get_ylim()
+        yrange = y_max - y_min
+
+        x_min, x_max = axis.get_xlim()
+        xrange = x_max - x_min
+        
+        for (x, y) in [self.xyA_i, self.xyB_i, self.xyA_f, self.xyB_f, self.px_i, self.px_f]:
+            if x > xrange:
+                raise RuntimeError("Coordinates of line slice are outside the"\
+                    "coordinates of the axis."
+                )
+            elif y > yrange:
+                raise RuntimeError("Coordinates of line slice are outside the"\
+                    "coordinates of the axis."
+                )
+        cp_i = ConnectionPatch(
+            xyA=self.xyA_i,
+            xyB=self.xyB_i,
+            coordsA="data"
+        )
+        cp_f = ConnectionPatch(
+            xyA=self.xyA_f,
+            xyB=self.xyB_f,
+            coordsA="data"
+        )
+        cp_line = ConnectionPatch(
+            xyA=self.px_i,
+            xyB=self.px_f,
+            coordsA="data"
+        )
+        axis.add_artist(cp_i)
+        axis.add_artist(cp_line)
+        axis.add_artist(cp_f)
         return axis
     
 
