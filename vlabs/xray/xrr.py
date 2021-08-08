@@ -6,7 +6,10 @@ from refnx.dataset import ReflectDataset
 import re
 from itertools import islice
 
-def reduce_xray(f, bkg=None, scale=None, sample_length=None):
+# mm
+XRR_BEAMWIDTH_SD = 0.019449
+
+def reduce_xray(f, bkg=None, scale=None, sample_length=None, clip=0):
     """
     Reduces a X-ray file. Current supported file formats are
     PANAlytical XRDML and Rigaku RAS filetypes.
@@ -38,9 +41,10 @@ def reduce_xray(f, bkg=None, scale=None, sample_length=None):
     elif f.endswith('.ras'):
         spec = parse_ras_file(f)
 
-    reflectivity = spec["intensities"] / spec["count_time"]
-    reflectivity_s = np.sqrt(spec["intensities"]) / spec["count_time"]
-
+    reflectivity = spec["intensities"][clip:] / spec["count_time"]
+    reflectivity = reflectivity
+    reflectivity_s = np.sqrt(spec["intensities"][clip:]) / spec["count_time"]
+    reflectivity_s = reflectivity_s
     # do the background subtraction
     if bkg is not None:
         bkgds = [parse_xrdml_file(fi) for fi in bkg]
@@ -66,9 +70,9 @@ def reduce_xray(f, bkg=None, scale=None, sample_length=None):
 
     # work out the Q values
     qx, qy, qz = general.q2(
-        spec["omega"],
-        spec["twotheta"],
-        np.zeros_like(spec["omega"]),
+        spec["omega"][clip:],
+        spec["twotheta"][clip:],
+        np.zeros_like(spec["omega"][clip:]),
         spec["wavelength"],
     )
 
@@ -77,7 +81,7 @@ def reduce_xray(f, bkg=None, scale=None, sample_length=None):
         footprint_correction = general.beamfrac(
             np.array([XRR_BEAMWIDTH_SD]) * 2.35,
             np.array([sample_length]),
-            spec["omega"],
+            spec["omega"][clip:],
         )
         reflectivity /= footprint_correction
         reflectivity_s /= footprint_correction
@@ -244,15 +248,16 @@ def parse_xrdml_file(f):
         "/xrdml:startPosition",
         "omega_end": ".//xrdml:positions[@axis='Omega']" "/xrdml:endPosition",
         "cnt_time": ".//xrdml:commonCountingTime",
-        "kAlpha1": ".//xrdml:kAlpha1",
-        "kAlpha2": ".//xrdml:kAlpha2",
+        "K-Alpha1": ".//xrdml:kAlpha1",
+        "K-Alpha2": ".//xrdml:kAlpha2",
         "ratio": ".//xrdml:ratioKAlpha2KAlpha1",
     }
 
     res = {key: root.find(value, ns).text for key, value in query.items()}
 
-    kAlpha1 = float(res["kAlpha1"])
-    kAlpha2 = float(res["kAlpha2"])
+
+    kAlpha1 = float(res["K-Alpha1"])
+    kAlpha2 = float(res["K-Alpha2"])
     ratio = float(res["ratio"])
     wavelength = (kAlpha1 + ratio * kAlpha2) / (1 + ratio)
 

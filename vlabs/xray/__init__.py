@@ -1,5 +1,5 @@
 from vlabs.xray.xrd import (
-    RSMtools,
+    ReciprocalSpaceMap,
     ras_file,
     xrdml_file,
 )
