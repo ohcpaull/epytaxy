@@ -4,7 +4,9 @@ from matplotlib.patches import ConnectionPatch
 from skimage.measure import profile_line
 
 def _line_profile_coordinates(src, dst, linewidth=1):
-    """Return the coordinates of the profile of an image along a scan line.
+    """
+    Return the coordinates of the profile of an image along a scan line.
+
     Parameters
     ----------
     src : 2-tuple of numeric scalar (float or int)
@@ -13,11 +15,13 @@ def _line_profile_coordinates(src, dst, linewidth=1):
         The end point of the scan line.
     linewidth : int, optional
         Width of the scan, perpendicular to the line
+
     Returns
     -------
     coords : array, shape (2, N, C), float
         The coordinates of the profile along the scan line. The length of the
         profile is the ceil of the computed length of the scan line.
+
     Notes
     -----
     This is a utility method meant to be used internally by skimage functions.
@@ -129,38 +133,27 @@ class LineProfile:
         return print(f"Length = {self.px_dist} pixels\nWidth = {self.px_width} pixels")
 
     def cut_channel(self, channel_data):
+        """
+        Take the LineProfile configuration and apply to an inputted 2D dataset.
 
+        Parameters
+        ----------
+        channel_data    :   np.array (M, N)
+            2D array of data to take a line profile in
+
+        Attributes
+        ----------
+        line_profile    :   np.array 
+        """
         self.line_profile = profile_line(
             channel_data.T,
             self.px_i,
             self.px_f,
             linewidth = self.px_width,
+            mode="nearest"
         )
 
-    def _plot_over_channel(self, axis):
-        
-        y_min, y_max = axis.get_ylim()
-        yrange = y_max - y_min
-
-        x_min, x_max = axis.get_xlim()
-        xrange = x_max - x_min
-        
-        for (x, y) in [self.xyA_i, self.xyB_i, self.xyA_f, self.xyB_f, self.px_i, self.px_f]:
-            if x > xrange:
-                raise RuntimeError("Coordinates of line slice are outside the"\
-                    "coordinates of the axis."
-                )
-            elif y > yrange:
-                raise RuntimeError("Coordinates of line slice are outside the"\
-                    "coordinates of the axis."
-                )
-
-        axis.add_artist(self.cpatch_i)
-        axis.add_artist(self.cpatch_line)
-        axis.add_artist(self.cpatch_f)
-        return axis
-
-    def plot_over_channel(self, axis):
+    def plot_over_channel(self, axis, **kwargs):
         
         y_min, y_max = axis.get_ylim()
         yrange = y_max - y_min
@@ -180,23 +173,45 @@ class LineProfile:
         cp_i = ConnectionPatch(
             xyA=self.xyA_i,
             xyB=self.xyB_i,
-            coordsA="data"
+            coordsA="data",
+            **kwargs
         )
         cp_f = ConnectionPatch(
             xyA=self.xyA_f,
             xyB=self.xyB_f,
-            coordsA="data"
+            coordsA="data",
+            **kwargs
         )
         cp_line = ConnectionPatch(
             xyA=self.px_i,
             xyB=self.px_f,
-            coordsA="data"
+            coordsA="data",
+            **kwargs
         )
         axis.add_artist(cp_i)
         axis.add_artist(cp_line)
         axis.add_artist(cp_f)
         return axis
+
+
+def get_2DFFT(image):
+    '''
+    Calculates the 2D fourier transform of a bitmap image
+
+    Parameters
+    ----------
+    image       :   np.array of shape (M,N)
+        M rows in image, and N columns
     
+    Returns
+    ----------
+    fft_image   :   Fourier transform of input image
+    '''
+    image_raw = image.get_n_dim_form().squeeze()
+    fft_image = np.fft.fft2(image_raw)
+    fft_image = np.fft.fftshift(fft_image)
+    
+    return fft_image
 
 # Curve fitting functions
 
