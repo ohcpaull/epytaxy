@@ -1,5 +1,6 @@
-from .spm import scanningprobe
-from .xray import xrr, xrd
+from .spm import AsylumDART, AsylumSF
+from .xray import ReciprocalSpaceMap
+from .neutron import TaipanNexus, basename_datafile, number_datafile, datafile_number
 
 from vlabs.spm.utils import(
     gaussian,
@@ -18,6 +19,6 @@ from vlabs.spm.utils import(
 )
 
 try:
-    from refnx.version import version as __version__
+    from vlabs.version import version as __version__
 except ImportError:
     __version__ = "version string not created yet"
