@@ -41,6 +41,7 @@ def reduce_xray(f, bkg=None, scale=None, sample_length=None, clip=0):
     elif f.endswith('.ras'):
         spec = parse_ras_file(f)
 
+    spec["intensities"] += 1
     reflectivity = spec["intensities"][clip:] / spec["count_time"]
     reflectivity = reflectivity
     reflectivity_s = np.sqrt(spec["intensities"][clip:]) / spec["count_time"]
