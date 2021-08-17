@@ -1,3 +1,4 @@
+README.md
 setup.py
 PFM analysis/Fourier_transform.ipynb
 PFM analysis/PFM_Analysis (2).ipynb
@@ -24,14 +25,20 @@ XRD analysis/.ipynb_checkpoints/RSMview_v1-checkpoint.ipynb
 XRD analysis/.ipynb_checkpoints/Rigaku_XRR_fitting-checkpoint.ipynb
 XRD analysis/.ipynb_checkpoints/Untitled-checkpoint.ipynb
 vlabs/__init__.py
+vlabs/version.py
 vlabs.egg-info/PKG-INFO
 vlabs.egg-info/SOURCES.txt
 vlabs.egg-info/dependency_links.txt
+vlabs.egg-info/requires.txt
 vlabs.egg-info/top_level.txt
 vlabs/__pycache__/__init__.cpython-37.pyc
 vlabs/__pycache__/vlabs.cpython-37.pyc
+vlabs/neutron/__init__.py
+vlabs/neutron/taipan.py
 vlabs/spm/__init__.py
+vlabs/spm/igor_ibw.py
 vlabs/spm/scanningprobe.py
+vlabs/spm/utils.py
 vlabs/spm/__pycache__/__init__.cpython-37.pyc
 vlabs/spm/__pycache__/scanningprobe.cpython-37.pyc
 vlabs/xray/__init__.py

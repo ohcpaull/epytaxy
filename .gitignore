@@ -5,5 +5,7 @@
 **.ipynb_checkpoints
 
 #### Ignore package egg info ####
-
 vlabs.egg-info/
+
+#### Ignore testing folder ####
+testing/

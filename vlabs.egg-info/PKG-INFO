@@ -1,10 +1,28 @@
-Metadata-Version: 1.0
+Metadata-Version: 2.1
 Name: vlabs
-Version: 0.1
-Summary: UNKNOWN
-Home-page: UNKNOWN
+Version: 0.0.5.dev0+d97fc72
+Summary: Experimental data reading and analysis tools for TFF
+Home-page: https://github.com/ohcpaull/valanoorlabs
 Author: Oliver Paull
-Author-email: UNKNOWN
-License: UNKNOWN
-Description: UNKNOWN
-Platform: UNKNOWN
+Author-email: ohcpaull+vlabs@gmail.com
+License: BSD
+Project-URL: Bug Tracker, https://github.com/ohcpaull/valanoorlabs/issues
+Project-URL: Documentation, None
+Project-URL: Source Code, https://github.com/ohcpaull/valanoorlabs
+Description: long_description
+Platform: Windows
+Platform: Linux
+Platform: Solaris
+Platform: Mac OS-X
+Platform: Unix
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: Public Domain
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Scientific/Engineering :: Chemistry
+Classifier: Topic :: Scientific/Engineering :: Physics
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
