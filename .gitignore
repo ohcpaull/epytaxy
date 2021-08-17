@@ -1,4 +1,9 @@
-##### Ignore the following files #####
-
-
+##### Ignore .pyc files #####
 *.pyc
+
+#### Ignore jupyter notebook checkpoints ####
+**.ipynb_checkpoints
+
+#### Ignore package egg info ####
+
+vlabs.egg-info/
