@@ -168,7 +168,7 @@ class ReciprocalSpaceMap(object):
 
     @staticmethod
     def xrdml_file(self, file):
-        xrdml_file = xu.io.XRDMLFile(file, path=self.filepath)
+        xrdml_file = xu.io.XRDMLFile(file)
         d = xrdml_file.scan.ddict
 
         twotheta = d["2Theta"]
