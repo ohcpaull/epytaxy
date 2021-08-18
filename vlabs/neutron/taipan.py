@@ -224,7 +224,7 @@ class TaipanCatalogue(object):
 
 class TaipanRSM(object):
     """
-    Taipan neutron RSM class
+    Reciprocal space map measured by TAIPAN in a series of linescans. 
 
     Parameters
     ----------

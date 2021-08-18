@@ -167,23 +167,9 @@ def setup_package():
     info['version'] = get_version_info()[0]
     print(info['version'])
 
-    try:
-        setup(**info)
-    except ValueError:
-        # there probably wasn't a C-compiler (windows). Try removing extension
-        # compilation
-        print("")
-        print("*****WARNING*****")
-        print("You didn't try to build the Reflectivity calculation extension."
-              " Calculation will be slow, falling back to pure python."
-              " To compile extension install cython. If installing in windows you"
-              " should then install from Visual Studio command prompt (this makes"
-              " C compiler available")
-        print("*****************")
-        print("")
-        info.pop('cmdclass')
-        info.pop('ext_modules')
-        setup(**info)
+    
+    setup(**info)
+
 
 
 if __name__ == '__main__':

@@ -1,8 +1,6 @@
 README.md
 setup.py
 PFM analysis/Fourier_transform.ipynb
-PFM analysis/PFM_Analysis (2).ipynb
-PFM analysis/PFM_Analysis.ipynb
 PFM analysis/.ipynb_checkpoints/PFM_Analysis (2)-checkpoint.ipynb
 PFM analysis/.ipynb_checkpoints/PFM_Analysis-checkpoint.ipynb
 PFM analysis/data/P0125OP0000.h5
@@ -15,15 +13,9 @@ PFM analysis/data/P0125OP0006.h5
 PFM analysis/data/P0125OP0007.h5
 PFM analysis/data/P0142OP0000.h5
 PFM analysis/data/P0142OP0001.h5
-XRD analysis/PANalytical_1D_plot.ipynb
-XRD analysis/RSMview_v1.ipynb
-XRD analysis/Rigaku_1D_plot_and_gaussfit.ipynb
-XRD analysis/Rigaku_XRR_fitting.ipynb
-XRD analysis/Untitled.ipynb
 XRD analysis/op18N012_XRR.xrdml
 XRD analysis/.ipynb_checkpoints/RSMview_v1-checkpoint.ipynb
 XRD analysis/.ipynb_checkpoints/Rigaku_XRR_fitting-checkpoint.ipynb
-XRD analysis/.ipynb_checkpoints/Untitled-checkpoint.ipynb
 vlabs/__init__.py
 vlabs/version.py
 vlabs.egg-info/PKG-INFO
@@ -31,19 +23,12 @@ vlabs.egg-info/SOURCES.txt
 vlabs.egg-info/dependency_links.txt
 vlabs.egg-info/requires.txt
 vlabs.egg-info/top_level.txt
-vlabs/__pycache__/__init__.cpython-37.pyc
-vlabs/__pycache__/vlabs.cpython-37.pyc
 vlabs/neutron/__init__.py
 vlabs/neutron/taipan.py
 vlabs/spm/__init__.py
 vlabs/spm/igor_ibw.py
 vlabs/spm/scanningprobe.py
 vlabs/spm/utils.py
-vlabs/spm/__pycache__/__init__.cpython-37.pyc
-vlabs/spm/__pycache__/scanningprobe.cpython-37.pyc
 vlabs/xray/__init__.py
 vlabs/xray/xrd.py
 vlabs/xray/xrr.py
-vlabs/xray/__pycache__/__init__.cpython-37.pyc
-vlabs/xray/__pycache__/xrd.cpython-37.pyc
-vlabs/xray/__pycache__/xrr.cpython-37.pyc
