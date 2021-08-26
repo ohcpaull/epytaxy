@@ -8,6 +8,7 @@ In this version I graph the output as H K L parameters
 """
 
 import os #this deals with file directories
+import io
 import xrayutilities as xu #this is the main package that is used
 import numpy as np #useful mathematics package
 import tkinter as tk #user interface for file IO
@@ -22,6 +23,7 @@ import xml.etree.ElementTree as et
 from refnx.dataset import ReflectDataset
 import re
 from itertools import islice
+import zipfile
 
 # mm
 XRR_BEAMWIDTH_SD = 0.019449
@@ -32,7 +34,7 @@ rcParams.update({'figure.autolayout': True})
 
 #__all__ = ["lattice", "find_nearest"]
 
-class ReciprocalSpaceMap(object):
+class ReciprocalSpaceMap:
     """
     X-ray diffraction reciprocal space map. 
 
@@ -304,21 +306,19 @@ class ReciprocalSpaceMap(object):
 
 
         INT = xu.maplog(self.gridder.data, dynLow, dynHigh)
-        levels = np.linspace(1, dynhigh, num=20)
-        levels = 10**(levels)
-        #print(levels)
-        ax.contourf(self.gridder.xaxis, self.gridder.yaxis, np.transpose(INT), nlev, **kwargs)
-
+        im = ax.contourf(self.gridder.xaxis, self.gridder.yaxis, np.transpose(INT), nlev, **kwargs)
+        for c in im.collections:
+            c.set_edgecolor("face")
         if axlabels == 'ipoop':
-            xlabel = '$Q_{ip}$'
-            ylabel = '$Q_{oop}$'
+            xlabel = '$q_{ip}$'
+            ylabel = '$q_{oop}$'
             ax.set_xlabel(xlabel)
             ax.set_ylabel(ylabel)
         else:
             xlabel = [ '\\bar{'+str(-i)+'}' if i < 0 else str(i) for i in self.iHKL ]
             ylabel = [ '\\bar{'+str(-i)+'}' if i < 0 else str(i) for i in self.oHKL ]
-            ax.set_xlabel(r'$Q_{[' + xlabel[0] + '' + xlabel[1] + '' + xlabel[2] + ']}$')
-            ax.set_ylabel(r'$Q_{[' + ylabel[0] + '' + ylabel[1] + '' + ylabel[2] + ']}$')
+            ax.set_xlabel(r'$q_{[' + xlabel[0] + '' + xlabel[1] + '' + xlabel[2] + ']}$')
+            ax.set_ylabel(r'$q_{[' + ylabel[0] + '' + ylabel[1] + '' + ylabel[2] + ']}$')
             ax.tick_params(axis='both', which='major')
         
             return fig, ax
@@ -556,6 +556,72 @@ class ReciprocalSpaceMap(object):
         np.savetxt(fname, tmp, delimiter=',')
 
 
+class BRMLFile:
+    """
+    Bruker D8 .brml file reader for 1-dimensional 2theta-omega x-ray data. 
+
+
+    Parameters
+    ----------
+    file_name : str
+        string
+    """
+
+    def __init__(self, file_name):
+        self.scan_axes = {}
+        
+        with zipfile.ZipFile(file_name, 'r') as zip_ref:
+            zip_ref.printdir()
+            c = zip_ref.read("Experiment0/RawData0.xml")
+
+            self.scan_params, self.fixed_params = self.parse_scan(c)
+
+            self.two_theta = self.scan_params.pop("two_theta")
+            self.omega = self.scan_params.pop("omega")
+            self.counts = self.scan_params.pop("counts")
+
+    def parse_scan(self, xml_file):
+        root = et.fromstring(xml_file)
+
+        ns = {'brml': "http://www.w3.org/2001/XMLSchema",
+                  'fixed' : "http://www.w3.org/2001/XMLSchema-instance"}
+
+        query = {
+            "start_time" : "TimeStampStarted",
+            "end_time" : "TimeStampEnded",
+            "intensities": "DataRoutes/DataRoute/Datum",
+            "twotheta_start" : "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@AxisId='TwoTheta']/Start",
+            "twotheta_end" : "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@VisibleName='2Theta']/Stop",
+            "twotheta_incr": "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@VisibleName='2Theta']/Increment",
+            "omega_start" : "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@VisibleName='Omega']/Start",
+            "omega_end" : "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@VisibleName='Omega']/Stop",
+            "omega_incr": "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@VisibleName='Omega']/Increment",
+        }
+            
+        scanp = {key: [i.text for i in root.findall(value, ns)] for key, value in query.items()}
+
+        two_theta = np.array([float(point.split(",")[2]) for point in scanp["intensities"]])
+        omega = np.array([float(point.split(",")[3]) for point in scanp["intensities"]])
+        counts = np.array([float(point.split(",")[-1]) for point in scanp["intensities"]])
+        scanp.pop("intensities")
+        scanp.update({
+            "two_theta" : two_theta,
+            "omega" : omega,
+            "counts" : counts,
+        })
+
+        fixp = {}
+        for item in root.findall("FixedInformation/Drives/"):
+            motor_name = item.get("LogicName")
+            position = item.find("Position")
+            pos_val = position.get("Value")
+            fixp.update({motor_name : pos_val})
+
+        return scanp, fixp
+
+
+
+
 def ras_file(file):
     """
     Reads a 1-dimensional Rigaku RAS file.
@@ -622,3 +688,4 @@ def xrdml_file(file, data_dir="."):
     d = xrdml_file.scan.ddict
 
     return d
+

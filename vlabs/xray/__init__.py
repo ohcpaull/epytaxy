@@ -1,5 +1,6 @@
 from vlabs.xray.xrd import (
     ReciprocalSpaceMap,
+    BRMLFile,
     ras_file,
     xrdml_file,
 )
