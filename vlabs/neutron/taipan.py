@@ -169,7 +169,7 @@ class TaipanCatalogue(object):
         d = {}
         file_path = os.path.realpath(h5d.filename)
         d["path"] = os.path.dirname(file_path)
-        d["filename"] = h5d.filename
+        d["filename"] = os.path.basename(h5d.filename)
         try:
             d["end_time"] = h5d["entry1/end_time"][0]
         except KeyError:
@@ -199,8 +199,17 @@ class TaipanCatalogue(object):
         d["qh"] = h5d["entry1/sample/qh"][:]
         d["qk"] = h5d["entry1/sample/qk"][:]
         d["ql"] = h5d["entry1/sample/ql"][:]
-        
-        #d["temp1"] = h5d["entry1/sample/tc1/sensor/Tsample"][:]
+
+        if h5d["entry1/sample/tc1/"]:
+            d["temp_1"] = h5d["entry1/sample/tc1/sensor/sensorValueA"][:]
+            d["temp_1_setpoint1"] = h5d["entry1/sample/tc1/sensor/setpoint1"][:]
+            d["temp_1_setpoint2"] = h5d["entry1/sample/tc1/sensor/setpoint2"][:]
+
+        if h5d["entry1/sample/tc2/"]:
+            d["temp_2"] = h5d["entry1/sample/tc2/sensor/sensorValueA"][:]
+            d["temp_2_setpoint1"] = h5d["entry1/sample/tc2/sensor/setpoint1"][:]
+            d["temp_2_setpoint2"] = h5d["entry1/sample/tc2/sensor/setpoint2"][:]
+
         #d["temp"] = h5d["entry1/sample/tc1/sensor/sensorValueA"][:]
 
         
@@ -220,6 +229,8 @@ class TaipanCatalogue(object):
     @property
     def datafile_number(self):
         return datafile_number(self.filename, prefix=self.prefix)
+
+    
     
 
 class TaipanRSM(object):
