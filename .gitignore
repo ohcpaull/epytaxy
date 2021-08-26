@@ -9,3 +9,6 @@ vlabs.egg-info/
 
 #### Ignore testing folder ####
 testing/
+
+#### Ignore personal access token ####
+token.txt
