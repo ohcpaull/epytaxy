@@ -54,5 +54,5 @@ where `this-is-you` is your GitHub username. Here you're copying the contents of
 
 Open Anaconda Prompt, and navigate to the directory where the cloned valanoorlabs folder is held (e.g. `cd C:\Users\user_name\Documents\code` if valanoorlabs is in the code folder). Then do the following:
 ```
-pip install -e valanoorlabs
+pip install -e vlabs
 ```
