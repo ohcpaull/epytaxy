@@ -227,6 +227,81 @@ def get_2DFFT(image):
 
 # Curve fitting functions
 
+def gaussian2d(M, *args):
+    """
+    Multiple 2-dimensional gaussian generator to be plotted as a contour or
+    mesh plot. Just put in the sets of starting parameters for each 2D gaussian 
+
+    Parameters
+    ----------
+    M       :   np.array with shape (2,N)
+        x and y data for the 2D plot.
+    args    :   2D gaussian parameters
+        x0  -   x centre for gaussian
+        y0  -   y centre for gaussian
+        xalpha - standard deviation in x
+        yalpha - standard deviation in y
+        A - amplitude
+        offs - offset in Z
+
+    Returns
+    -------
+    arr :   np.array (X,Y)
+        X is width of 2D map
+        Y is height of 2D map
+
+    Notes
+    ---------
+    Must be a multiple of 6 arguments for the 2D gaussian otherwise it will not work. 
+    """
+    
+    def _gaussian2d(x, y, x0, y0, xalpha, yalpha, A, offs):
+        return A * np.exp(
+        -((x - x0) / xalpha) ** 2 - ((y - y0) / yalpha)**2
+        ) + offs
+
+    x, y = M
+    arr = np.zeros(x.shape)
+    for i in range(len(args)//6):
+       arr += _gaussian2d(x, y, *args[i*6:i*6+6])
+    return arr
+
+def Gauss2d(M, *p):
+    """
+    function to calculate any number of general two dimensional Gaussians. 
+    Requires the x and y axes to be concatenated into a tuple of arrays, and
+    that the number of parameters be divisible by the number of parameters
+    for a 2D gaussian (i.e. 7) 
+
+    Parameters
+    ----------
+    x, y :  array-like
+        coordinate(s) where the function should be evaluated
+    p :     list
+        list of parameters of the Gauss-function
+        [XCEN, YCEN, SIGMAX, SIGMAY, AMP, BACKGROUND, ANGLE];
+        SIGMA = FWHM / (2*sqrt(2*log(2)));
+        ANGLE = rotation of the X, Y direction of the Gaussian in radians
+
+    Returns
+    -------
+    array-like
+        the value of the Gaussian described by the parameters p at
+        position (x, y)
+    """
+    x, y = M
+    arr = np.zeros(x.shape)
+    for i in range(len(p)//7):
+
+        rcen_x = p[i*7] * np.cos(np.radians(p[i*7+6])) - p[i*7+1] * np.sin(np.radians(p[i*7+6]))
+        rcen_y = p[i*7] * np.sin(np.radians(p[i*7+6])) + p[i*7+1] * np.cos(np.radians(p[i*7+6]))
+        xp = x * np.cos(np.radians(p[i*7+6])) - y * np.sin(np.radians(p[i*7+6]))
+        yp = x * np.sin(np.radians(p[i*7+6])) + y * np.cos(np.radians(p[i*7+6]))
+
+        arr += p[i*7+5] + p[i*7+4] * np.exp(-(((rcen_x - xp) / p[i*7+2]) ** 2 +
+                                  ((rcen_y - yp) / p[i*7+3]) ** 2) / 2.)
+    return arr
+
 # gaussian function
 def gaussian(x, amp, mu, std, bg):
     """
