@@ -101,14 +101,14 @@ class ReciprocalSpaceMap:
         if filepath:
             self.load_sub( filepath, **kwargs)
 
-    def load_sub( self, filepath = None, delta=None, verbose=False):
+    def load_sub( self, filepath = None, delta=None, verbose=False, **kwargs):
 
         self.filepath = filepath
         if filepath is None:
             self.filepath = self.open_dialogue()   # open GUI for user to select file 
         b = self.filepath.index('.') # find the period that separates filename and extension
         a = self.filepath.rfind('/')  # find the slash that separates the directory and filename
-        ext = self.filepath[(b+1):] # get extension and determine whether it is RAS or XRDML
+        ext = self.filepath.split(".")[-1] # get extension and determine whether it is RAS or XRDML
         self.filename = self.filepath[(a+1):(b)]
 
         if ext == 'xrdml':
@@ -321,7 +321,7 @@ class ReciprocalSpaceMap:
             ax.set_ylabel(r'$q_{[' + ylabel[0] + '' + ylabel[1] + '' + ylabel[2] + ']}$')
             ax.tick_params(axis='both', which='major')
         
-            return fig, ax
+        return fig, ax
         
     def find_nearest(self, array, value):
         array = np.asarray(array)
@@ -337,14 +337,6 @@ class ReciprocalSpaceMap:
         Ta = xu.materials.elements.Ta
         Y =  xu.materials.elements.Y
         energy = 1240/0.154
-        
-
-        while (self.substrateMat != 'LAO' and self.substrateMat != 'STO' and self.substrateMat != 'LSAT' and self.substrateMat != 'YAO'):
-            self.substrateMat = input('Sample substrate (LAO, STO or LSAT)?')
-            print(self.substrateMat)
-            print('input valid substrate material')
-            
-
 
         if self.substrateMat == "LAO":
             substrate = xu.materials.Crystal("LaAlO3", xu.materials.SGLattice(221, 3.784, \
@@ -355,7 +347,7 @@ class ReciprocalSpaceMap:
             substrate = xu.materials.SrTiO3
 
             hxrd = xu.HXRD(substrate.Q(int(self.iHKL[0]), int(self.iHKL[1]), int(self.iHKL[2])), \
-                           substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])), en=energy)
+                           substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])), en=energy, geometry = geometry)
         elif self.substrateMat == "LSAT": # need to make an alloy of LaAlO3 and Sr2AlTaO6
             mat1 = xu.materials.Crystal("LaAlO3", xu.materials.SGLattice(221, 3.79, \
                            atoms=[La, Al, O], pos=['1a', '1b', '3c']))
@@ -363,7 +355,7 @@ class ReciprocalSpaceMap:
                            atoms=[Sr, Al, Ta, O], pos=['8c', '4a', '4b', '24c']))
             substrate = xu.materials.CubicAlloy(mat1, mat2, 0.71)
             hxrd = xu.HXRD(substrate.Q(int(self.iHKL[0]), int(self.iHKL[1]), int(self.iHKL[2])), \
-                           substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])), en=energy)
+                           substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])), en=energy, geometry = geometry)
         elif self.substrateMat == "YAO":
             print(
                 "Warning: YAlO3 is an orthorhombic substrate. Remember to take this into account\
@@ -372,7 +364,7 @@ class ReciprocalSpaceMap:
             substrate = xu.materials.Crystal("YAlO3", xu.materials.SGLattice(62, 5.18, 5.33, 7.37,\
                             atoms=[Y, Al, O], pos=['4c', '4b', '4c', '8d']))
             hxrd = xu.HXRD(substrate.Q(int(self.iHKL[0]), int(self.iHKL[1]), int(self.iHKL[2])), \
-                           substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])), en=energy, **kwargs)
+                           substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])), en=energy, geometry = geometry, **kwargs)
            
         return [substrate, hxrd]
     

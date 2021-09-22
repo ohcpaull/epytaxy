@@ -129,12 +129,31 @@ class TaipanNexus(object):
 
         self.scan_axis = []
 
-        for axis in ["qh", "qk", "ql", "s1", "s2", "ei", "ef"]:
+        for axis in ["qh", "qk", "ql", "s1", "s2", "ei", "ef", "sgu", "sgl"]:
             if average_neighbour_difference(getattr(self.cat, axis)) > 1e-4:
                 self.scan_axis.append(axis)
 
         self.cts = self.cat.cat["bm2_counts"]
         self.cts_err = np.sqrt(self.cts)
+
+    def __len__(self):
+        return len(self.cts)
+
+    def __str__(self):
+        qh_min = min(self.cat.qh)
+        qh_max = max(self.cat.qh)
+        qk_min = min(self.cat.qk)
+        qk_max = max(self.cat.qk)
+        ql_min = min(self.cat.ql)
+        ql_max = max(self.cat.ql)
+
+        return (
+            f"{len(self)} measured points in TPN file.\n"
+            f"-------------------------------------\n"
+            f"Q ranges:\nq_h \t ({qh_min:.3f}, {qh_max:.3f})\n"
+            f"q_k \t ({qk_min:.3f}, {qk_max:.3f})\n"
+            f"q_l \t ({ql_min:.3f}, {ql_max:.3f})"
+        )
 
     def plot(self, axis=None, fig=None, ax=None, **kwargs):
         if axis is None:
@@ -142,14 +161,35 @@ class TaipanNexus(object):
 
         fig, ax = plt.subplots()
 
-        ax.plot(getattr(self.cat, axis), self.cts, **kwargs)
+        ax.plot(getattr(self.cat, axis), self.cts/self.cat.bm2_time, **kwargs)
         ax.set(
             xlabel=axis,
-            ylabel="Counts (a.u.)"
+            ylabel="Counts/sec"
         )
         return fig, ax
 
-              
+    def save(
+        self, 
+        filename=None, 
+        filetype="csv", 
+        keys = ["qh", "qk", "ql", "bm2_counts"]
+    ):
+        d = {}
+        for k in keys:
+            d[k] = self.cat.cat[k]
+
+        df = pd.DataFrame(d)
+
+        if filename is None:
+            filename = self.cat.filename.split()[0]
+    
+        if filetype == "csv":
+            delimiter=","
+        elif filetype == "txt":
+            delimiter="\t"
+        
+        np.savetxt(f"{filename}.{filetype}", df, delimiter=delimiter)
+
 class TaipanCatalogue(object):
     """
     Extract relevant parts of a TAIPAN NeXus file for analysis
@@ -184,6 +224,7 @@ class TaipanCatalogue(object):
         d["s2"] = h5d["entry1/sample/s2"][:]
         
         d["sgu"] = h5d["entry1/sample/sgu"][:]
+        d["sgl"] = h5d["entry1/sample/sgl"][:]
         d["data"] = h5d["entry1/monitor/data"][:]
         d["bm1_time"] = h5d["entry1/monitor/bm1_time"][:]
         d["bm1_counts"] = h5d["entry1/monitor/bm1_counts"][:]
@@ -200,16 +241,25 @@ class TaipanCatalogue(object):
         d["qk"] = h5d["entry1/sample/qk"][:]
         d["ql"] = h5d["entry1/sample/ql"][:]
 
-        if h5d["entry1/sample/tc1/"]:
+
+        try:
             d["temp_1"] = h5d["entry1/sample/tc1/sensor/sensorValueA"][:]
             d["temp_1_setpoint1"] = h5d["entry1/sample/tc1/sensor/setpoint1"][:]
             d["temp_1_setpoint2"] = h5d["entry1/sample/tc1/sensor/setpoint2"][:]
+        except KeyError:
+            d["temp_1"] = None
+            d["temp_1_setpoint1"] = None
+            d["temp_1_setpoint2"] = None
 
-        if h5d["entry1/sample/tc2/"]:
+
+        try:
             d["temp_2"] = h5d["entry1/sample/tc2/sensor/sensorValueA"][:]
             d["temp_2_setpoint1"] = h5d["entry1/sample/tc2/sensor/setpoint1"][:]
             d["temp_2_setpoint2"] = h5d["entry1/sample/tc2/sensor/setpoint2"][:]
-
+        except KeyError:
+            d["temp_2"] = None
+            d["temp_2_setpoint1"] = None
+            d["temp_2_setpoint2"] = None
         #d["temp"] = h5d["entry1/sample/tc1/sensor/sensorValueA"][:]
 
         
@@ -230,8 +280,6 @@ class TaipanCatalogue(object):
     def datafile_number(self):
         return datafile_number(self.filename, prefix=self.prefix)
 
-    
-    
 
 class TaipanRSM(object):
     """
@@ -255,6 +303,8 @@ class TaipanRSM(object):
         for file in os.listdir(directory):
             if verbose:
                 print(file)
+            if not file.endswith(".nx.hdf"):
+                continue
             if file_range[0] <= datafile_number(file) <= file_range[1]:
                 self.scans.append(TaipanNexus(os.path.join(directory, file)))
 
