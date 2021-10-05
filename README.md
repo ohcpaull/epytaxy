@@ -1,22 +1,22 @@
-vlabs
+epytaxy
 =====
 
 # Overview
 
-Valanoorlabs or vlabs is a python software package to read and analyse datafiles that is typically seen in the Thin Film Functionality (TFF) research group. This includes instruments within our lab, other specialised labs we access, as well as national research infrastructure. The package is split into 3 sections:
+epytaxy is a python software package to read and analyse datafiles that is typically seen in epitaxial thin film research. This includes instruments within our lab, other specialised labs we access, as well as national research infrastructure. The package is split into 3 sections:
 
-1. Scanning probe microscopy `vlabs.spm`
-    - Asylum Cypher single-frequency piezoresponse force microscopy (PFM) `vlabs.spm.AsylumSF`
-    - Asylum Cypher Dual-Amplitude Resonance Tracking (DART) PFM `vlabs.spm.AsylumDART`
+1. Scanning probe microscopy `epytaxy.spm`
+    - Asylum Cypher single-frequency piezoresponse force microscopy (PFM) `epytaxy.spm.AsylumSF`
+    - Asylum Cypher Dual-Amplitude Resonance Tracking (DART) PFM `epytaxy.spm.AsylumDART`
     - Bruker multimode AFM and PFM 
-2. X-ray scattering `vlabs.xray`
-    - X-ray reflectometry (XRR) `vlabs.xray.reduce_xray`
-    - X-ray diffraction line-scan (XRD) `vlabs.xray.ras_file`, `vlabs.xray.xrdml_file`
-    - X-ray reciprocal space map (RSM)  `vlabs.xray.ReciprocalSpaceMap`
+2. X-ray scattering `epytaxy.xray`
+    - X-ray reflectometry (XRR) `epytaxy.xray.reduce_xray`
+    - X-ray diffraction line-scan (XRD) `epytaxy.xray.ras_file`, `epytaxy.xray.xrdml_file`
+    - X-ray reciprocal space map (RSM)  `epytaxy.xray.ReciprocalSpaceMap`
 3.  Neutron scattering `vlabs.neutron`
-    - TAIPAN triple-axis spectrometer `vlabs.neutron.TaipanNexus`, `vlabs.neutron.TaipanRSM`
+    - TAIPAN triple-axis spectrometer `epytaxy.neutron.TaipanNexus`, `epytaxy.neutron.TaipanRSM`
 
-# Installing vlabs from git
+# Installing epytaxy from git
 <img align="right" width="300" src="https://firstcontributions.github.io/assets/Readme/fork.png" alt="fork this repository" />
 
 #### If you don't have git on your machine, [install it](https://help.github.com/articles/set-up-git/).
@@ -54,5 +54,5 @@ where `this-is-you` is your GitHub username. Here you're copying the contents of
 
 Open Anaconda Prompt, and navigate to the directory where the cloned valanoorlabs folder is held (e.g. `cd C:\Users\user_name\Documents\code` if valanoorlabs is in the code folder). Then do the following:
 ```
-pip install -e vlabs
+pip install -e epytaxy
 ```
