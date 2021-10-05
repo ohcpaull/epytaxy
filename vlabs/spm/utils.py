@@ -266,7 +266,7 @@ def gaussian2d(M, *args):
        arr += _gaussian2d(x, y, *args[i*6:i*6+6])
     return arr
 
-def Gauss2d(M, *p):
+def Gauss2d(M, **params):
     """
     function to calculate any number of general two dimensional Gaussians. 
     Requires the x and y axes to be concatenated into a tuple of arrays, and
@@ -291,6 +291,13 @@ def Gauss2d(M, *p):
     """
     x, y = M
     arr = np.zeros(x.shape)
+    p = []
+    if type(params) is dict:
+        for key in ["XCEN", "YCEN", "SIGMAX", "SIGMAY", "AMP", "BACKGROUND", "ANGLE"]:
+            p.append(params[key])
+
+
+    print(p)
     for i in range(len(p)//7):
 
         rcen_x = p[i*7] * np.cos(np.radians(p[i*7+6])) - p[i*7+1] * np.sin(np.radians(p[i*7+6]))
