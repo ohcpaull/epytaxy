@@ -13,7 +13,7 @@ epytaxy is a python software package to read and analyse datafiles that is typic
     - X-ray reflectometry (XRR) `epytaxy.xray.reduce_xray`
     - X-ray diffraction line-scan (XRD) `epytaxy.xray.ras_file`, `epytaxy.xray.xrdml_file`
     - X-ray reciprocal space map (RSM)  `epytaxy.xray.ReciprocalSpaceMap`
-3.  Neutron scattering `vlabs.neutron`
+3.  Neutron scattering `epytaxy.neutron`
     - TAIPAN triple-axis spectrometer `epytaxy.neutron.TaipanNexus`, `epytaxy.neutron.TaipanRSM`
 
 # Installing epytaxy from git
@@ -45,7 +45,7 @@ where "url you just copied" (without the quotation marks) is the url to this rep
 For example:
 
 ```
-git clone https://github.com/this-is-you/valanoorlabs.git
+git clone https://github.com/this-is-you/epytaxy.git
 ```
 
 where `this-is-you` is your GitHub username. Here you're copying the contents of the first-contributions repository on GitHub to your computer.
