@@ -91,7 +91,8 @@ class ReciprocalSpaceMap:
         self.p = []
         self.substrateMat = substrate_mat
         self.rsmRef = ref_hkl
-        self.axisraw = []
+        self.data_raw = []
+        self.axis_raw = []
         self.omega1D = []
         self._num_datasets = 0
 
@@ -112,18 +113,29 @@ class ReciprocalSpaceMap:
         self.filename = self.filepath[(a+1):(b)]
 
         if ext == 'xrdml':
-            (omega, tt, data) = self.xrdml_file(self, self.filepath)
+            (omega, tt, data) = self.xrdml_file(self.filepath)
             self.omega.append(omega)
             self.tt.append(tt)
             self.data.append(data)
+            self.p, [qx, qy, qz] = self.align_sub_peak(delta=delta, verbose=verbose)
         elif ext == 'ras':
-            (omega, tt, data) = self.ras_file(self, self.filepath)
+            (omega, tt, data) = self.ras_file(self.filepath)
             self.omega.append(omega)
             self.tt.append(tt)
             self.data.append(data)
+            self.p, [qx, qy, qz] = self.align_sub_peak(delta=delta, verbose=verbose)
+        elif ext == "txt":
+            d = self.text_file(self.filepath)
+            m = d["Metadata"]
+            self.omega.append(d[m["axis type"][0]])
+            self.tt.append(d[m["axis type"][1]])
+            self.data.append(d["Data"])
+            qx = np.zeros(d["Qy"].shape)
+            qy = d["Qy"]
+            qz = d["Qz"]
         else:
             print('filetype not supported.') 
-        self.p, [qx, qy, qz] = self.align_sub_peak(delta=delta, verbose=verbose)
+        
         self._update_q_ranges(qx, qy, qz)
         self.qx.append(qx)
         self.qy.append(qy)
@@ -143,22 +155,37 @@ class ReciprocalSpaceMap:
         """
         self.multi_file = True
 
+        if delta is None:
+            delta = self.delta
+
         if filepath is None:
             film_file = self.open_dialogue()
         else:
             film_file = filepath
         if filepath.endswith(".xrdml"):
-            (f_omega, f_tt, f_data) = self.xrdml_file( self, film_file )
+            (f_omega, f_tt, f_data) = self.xrdml_file(film_file)
+            qx, qy, qz = self.hxrd.Ang2Q(f_omega, f_tt, delta=delta)
         elif filepath.endswith(".ras"):
-            (f_omega, f_tt, f_data) = self.ras_file( self, film_file )
-            
+            (f_omega, f_tt, f_data) = self.ras_file(film_file)
+            qx, qy, qz = self.hxrd.Ang2Q(f_omega, f_tt, delta=delta)
+        elif filepath.endswith("txt"):
+            d = self.text_file(filepath)
+            m = d["Metadata"]
+            f_omega = d[m["axis type"][0]]
+            f_tt = d[m["axis type"][1]]
+            f_data = d["Data"]
+            qx = np.zeros(d["Qy"].shape)
+            qy = d["Qy"]
+            qz = d["Qz"]
+        
+        print(f_omega.shape)
+        print(f_tt.shape)
+        print(f_data.shape)
+
         self.omega.append(f_omega)
         self.tt.append(f_tt)
         self.data.append(f_data)
 
-        if not delta:
-            delta = self.delta
-        qx, qy, qz = self.hxrd.Ang2Q(f_omega, f_tt, delta=[delta[0], delta[1]])
         self._update_q_ranges(qx, qy, qz)
 
         self.qx.append(qx)
@@ -168,7 +195,6 @@ class ReciprocalSpaceMap:
         
         return f_omega, f_tt, f_data
 
-    @staticmethod
     def xrdml_file(self, file):
         xrdml_file = xu.io.XRDMLFile(file)
         d = xrdml_file.scan.ddict
@@ -193,37 +219,104 @@ class ReciprocalSpaceMap:
                 np.transpose(twotheta),
                 np.transpose(data))
 
-    @staticmethod
     def ras_file(self, file):
         # Read RAS data to object
         rasFile = xu.io.rigaku_ras.RASFile(file)
-        
+        self.file = rasFile
         self.scanaxis = rasFile.scans[1].scan_axis
-        self.stepSize = rasFile.scans[1].meas_step
+        self.step_size = rasFile.scans[1].meas_step
         self.measureSpeed= rasFile.scans[1].meas_speed
-        self.dataCount = rasFile.scans[1].length
+        self.data_count = rasFile.scans[1].length
+        time_per_step = self.data_count / self.measureSpeed
         # Read raw motor position and intensity data to large 1D arrays
 
         omttRaw, data = xu.io.getras_scan(rasFile.filename+'%s', '', self.scanaxis)
 
-        npinte = np.array(data['int'])
-        intensities = npinte.reshape(len(rasFile.scans), rasFile.scans[0].length)
+        counts = np.array(data["int"] * data["att"] / time_per_step)
+
+        intensities = counts.reshape(len(rasFile.scans), rasFile.scan.length)
         # Read omega data from motor positions at the start of each 2theta-Omega scan
-        om = [rasFile.scans[i].init_mopo['Omega'] for i in range(0, len(rasFile.scans))]
-        self.axisraw = omttRaw
+        omga = [rasFile.scans[i].init_mopo['Omega'] for i in range(0, len(rasFile.scans))]
+        self.axis_raw.append(omttRaw)
+        self.data_raw.append(data)
         # Convert 2theta-omega data to 1D array
-        tt = [omttRaw.data[i] for i in range(0, rasFile.scans[0].length)]
+        tt_1d = np.array([omttRaw[i] for i in range(0, rasFile.scans[0].length)])
+
+        if self.scanaxis == 'TwoThetaOmega' and self._num_datasets == 0: # If RSM is 2theta/omega vs omega scan, adjust omega values in 2D matrix
+            
+            omga = [[omga[i] + (n * self.step_size/2) for n in range(0,len(tt_1d))] for i in range(0,len(omga))]
+            tt = [[tt_1d[i] for i in range(0,len(tt_1d))] for j in range(0, len(omga))]
+        else:
+            omga, tt = np.meshgrid(omga, tt_1d)
+        tt = np.array(tt)
+        om = np.array(omga)
         
-        if self.scanaxis == 'TwoThetaOmega': # If RSM is 2theta/omega vs omega scan, adjust omega values in 2D matrix
-            omga = [[om[i] + (n * self.stepSize/2) for n in range(0,len(tt))] for i in range(0,len(om))]
-            omga = np.array(omga)
-            self.omega1D = omga
-            ttheta = np.array(tt)
-            tt = [[ttheta[i] for i in range(0,len(ttheta))] for j in range(0, len(omga))]
-            tt = np.array(tt)
+        return (np.transpose(om), np.transpose(tt), np.transpose(intensities))
+
+    def text_file(self, file):
+        """
+        Loads a ASCII 2D RSM file with Numpy.
         
-        return (np.transpose(omga), np.transpose(tt), np.transpose(intensities))
+        Parameters
+        ----------
+        txt_file : .txt file from rigaku 
         
+        Output
+        ----------
+        (omega, tt, data) : 3-tuple of np.arrays
+            Three 2D arrays for the omega, two-theta, 
+            and intensity values of the reciprocal 
+            space map measurement
+        """
+        
+        f = open(file, "r")
+        lines = f.readlines()
+        
+        
+        data = []
+        axis1 = []
+        axis2 = []
+        
+
+        metadata = {}
+        for line in lines[1:]:
+            if "#" in line and ":" in line:
+                # If # and : is in the line then it is a header comment 
+                key, val = line.split(":")
+                key = key.strip()
+                if len(val.split(" ")) > 2:
+                    # If there are multiple values in the comment
+                    # line, put them in an array
+                    val = val.split(" ")
+                    val = val[1:]
+                
+                metadata[key[2:]] = val
+            else:
+                rel_om, tth, dat, _ =  line.split("\t")
+                om = float(rel_om) + float(metadata["gonio origin"][0])
+                axis1.append(float(om))
+                axis2.append(float(tth))
+                data.append(float(dat))
+
+        om_length = int(metadata["number of data"][0])
+        tth_length = int(metadata["number of data"][1])
+        np_ax1 = np.array(axis1).reshape(tth_length, om_length)
+        np_ax2 = np.array(axis2).reshape(tth_length, om_length)
+        if "Chi" in metadata["axis type"][0]:
+            # if True, then assume a 2D detector is used
+            np_qy = 2 * (2 * np.pi / 1.54) * np.sin(np.radians(np_ax2/2)) * np.sin(np.radians(np_ax1))
+            np_qz = 2 * (2 * np.pi / 1.54) * np.sin(np.radians(np_ax2/2)) * np.cos(np.radians(np_ax1))
+        else:
+            np_qy = 2*np.pi/1.54 * (np.cos(np.radians(np_ax2 - np_ax1)) - np.cos(np.radians(np_ax1)))
+            np_qz = 2*np.pi/1.54 * (np.sin(np.radians(np_ax2 - np_ax1)) + np.sin(np.radians(np_ax1)))
+        
+        np_data = np.array(data).reshape(tth_length, om_length)
+        d = {metadata["axis type"][0] : np_ax1, metadata["axis type"][1] : np_ax2, "Qy" : np_qy, "Qz" : np_qz, "Data" : np_data, "Metadata" : metadata}
+
+        self.meta = d["Metadata"]
+                        
+        return d
+
     def plot2d(self, ax=None, **kwargs):
         if ax is None:
             fig, ax = plt.subplots()
@@ -243,8 +336,8 @@ class ReciprocalSpaceMap:
             ax.scatter(om1D,tt1D,c=dat1D,cmap='jet')
         '''    
 
-        
-        a = ax.contourf(self.omega[0],self.tt[0], np.log10(self.data[0]), **kwargs)
+        for i in range(self._num_datasets):
+            a = ax.contourf(self.omega[i],self.tt[i], np.log10(self.data[i]), **kwargs)
 
         ax.set_xlabel(r'$\omega$')
         ax.set_ylabel(r'2$\theta$-$\omega$')
@@ -368,7 +461,7 @@ class ReciprocalSpaceMap:
            
         return [substrate, hxrd]
     
-    def align_sub_peak(self, delta=None, verbose=False):
+    def align_sub_peak(self, frange=None, delta=None, verbose=False, **kwargs):
         nchannel = 255
         chpdeg = nchannel/2.511 #2.511 degrees is angular acceptance of xrays to detector
         center_ch = 128
@@ -388,7 +481,10 @@ class ReciprocalSpaceMap:
         if verbose:
             plot = True
 
-        exp_om, exp_tt, p, cov = xu.analysis.fit_bragg_peak( self.omega[0], self.tt[0], self.data[0], exp_om, exp_tt, self.hxrd, plot=plot)
+        if frange:
+            exp_om, exp_tt, p, cov = xu.analysis.fit_bragg_peak( self.omega[0], self.tt[0], self.data[0], self.theoOm, self.theoTT, self.hxrd, plot=plot, frange=frange)
+        else:
+            exp_om, exp_tt, p, cov = xu.analysis.fit_bragg_peak( self.omega[0], self.tt[0], self.data[0], exp_om, exp_tt, self.hxrd, plot=plot)
 
         self.hxrd.Ang2Q.init_linear('y+', center_ch, nchannel, chpdeg=chpdeg) 
 
@@ -445,50 +541,56 @@ class ReciprocalSpaceMap:
 
         return cl, fitParams, cov
 
-    def fit_zoom_Qpeak( self, angPlot, *kwargs ):
+    def fit_zoom_Qpeak( self, angPlot, verbose=False, *kwargs ):
 
         yminInd =  ( np.abs(self.gridder.yaxis[:] - angPlot.get_ylim()[0]) ).argmin()
         ymaxInd =  ( np.abs(self.gridder.yaxis[:] - angPlot.get_ylim()[1]) ).argmin()
         xminInd =  ( np.abs(self.gridder.xaxis[:] - angPlot.get_xlim()[0]) ).argmin()
         xmaxInd =  ( np.abs(self.gridder.xaxis[:] - angPlot.get_xlim()[1]) ).argmin() 
-        cropQx = self.gridder.xaxis[xminInd:xmaxInd]
-        cropQz = self.gridder.yaxis[yminInd:ymaxInd]
+        crop_qy = self.gridder.xaxis[xminInd:xmaxInd]
+        crop_qz = self.gridder.yaxis[yminInd:ymaxInd]
+        crop_data = self.gridder.data[xminInd:xmaxInd,yminInd:ymaxInd]
 
         fitRange = [self.gridder.xaxis[xminInd], self.gridder.xaxis[xmaxInd], self.gridder.yaxis[yminInd], self.gridder.yaxis[ymaxInd]]
         print(fitRange)
 
 
-        tupleIndex = np.unravel_index(
-            np.argmax(self.gridder.data[xminInd:xmaxInd,yminInd:ymaxInd].flatten()),
-            shape=(len(self.gridder.data[xminInd:xmaxInd, 0]), len(self.gridder.data[0,yminInd:ymaxInd]))
+        max_idx = np.unravel_index(
+            np.argmax(crop_data.flatten()),
+            shape=(len(crop_qy), len(crop_qz))
         )
 
 
-        cropData = self.gridder.data[yminInd:ymaxInd, xminInd:xmaxInd]
-        cropQxGrid, cropQzGrid = np.meshgrid(cropQx, cropQz)
-        xGrid, yGrid = np.meshgrid( self.gridder.xaxis, self.gridder.yaxis)
-        xC = cropQx[tupleIndex[0]]
-        yC = cropQz[tupleIndex[1]]
-        amp = self.gridder.data[tupleIndex]
+        crop_qy_mesh, crop_qz_mesh = np.meshgrid(crop_qy, crop_qz)
+        x_mesh, y_mesh = np.meshgrid( self.gridder.xaxis, self.gridder.yaxis)
+        xC = crop_qy[max_idx[0]]
+        yC = crop_qz[max_idx[1]]
+        amp = self.gridder.data[max_idx]
         xSigma = 0.01
         ySigma = 0.01
         angle = 0
         background = 1
         self.p = [xC, yC, xSigma, ySigma, amp, background, angle]
 
-        fitParams, cov = xu.math.fit.fit_peak2d(xGrid, yGrid, self.gridder.data.T, self.p, fitRange, xu.math.Gauss2d)
+        pfit, cov = xu.math.fit.fit_peak2d(x_mesh, y_mesh, self.gridder.data.T, self.p, fitRange, xu.math.Gauss2d)
 
+        if verbose:
+            print('------------- DEBUGGING -----------')
+            print('QxGrid size = ' + str(crop_qy_mesh.shape))
+            print('QzGrid size = ' + str(crop_qz_mesh.shape))
+            print('cropData size = ' + str(crop_data.shape))
+            print('fit params = ' + str(pfit))
+        
+        cl = angPlot.contour( 
+            self.gridder.xaxis, 
+            self.gridder.yaxis, 
+            xu.math.Gauss2d( x_mesh, y_mesh, *pfit), 
+            levels=8, 
+            colors='k', 
+            linestyles='solid'
+        )
 
-        print('------------- DEBUGGING -----------')
-        print('QxGrid size = ' + str(cropQxGrid.shape))
-        print('QzGrid size = ' + str(cropQzGrid.shape))
-        print('cropData size = ' + str(cropData.shape))
-        print('fit params = ' + str(fitParams))
-        cl = angPlot.contour( self.gridder.xaxis, self.gridder.yaxis, \
-                 np.log10(xu.math.Gauss2d( xGrid, \
-                 yGrid, *fitParams)), 8, colors='k', linestyles='solid')
-
-        return cl, fitParams, cov
+        return cl, pfit, cov
 
     def _update_q_ranges(self, qx, qy, qz):
         """
@@ -507,8 +609,9 @@ class ReciprocalSpaceMap:
         ymax = max(qy.flatten())
         zmin = min(qz.flatten())
         zmax = max(qz.flatten())
-
-        if self._num_datasets:
+        print(ymin)
+        print(ymax)
+        if self._num_datasets > 0:
             if xmin < self._gridder_xmin:
                 self._gridder_xmin = xmin
             elif xmax > self._gridder_xmax:
