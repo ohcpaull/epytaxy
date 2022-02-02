@@ -2,6 +2,7 @@ import numpy as np
 import scipy
 from matplotlib.patches import ConnectionPatch
 from skimage.measure import profile_line
+import lmfit
 
 def _line_profile_coordinates(src, dst, linewidth=1):
     """
@@ -75,7 +76,7 @@ class LineProfile:
         
     """
 
-    def __init__(self, px_i, px_f, width):
+    def __init__(self, px_i, px_f, width, color="black"):
         self.px_i = px_i
         self.px_f = px_f        
         self.px_width = width
@@ -104,6 +105,7 @@ class LineProfile:
             xyB=self.xyB_i,
             coordsA="data",
             coordsB="data",
+            color=color
         )
         
         self.cpatch_line = ConnectionPatch(
@@ -111,6 +113,7 @@ class LineProfile:
             xyB=self.px_f,
             coordsA="data",
             coordsB="data",
+            color=color
         )
 
         self.xyA_f = (
@@ -127,6 +130,7 @@ class LineProfile:
             xyB=self.xyB_f,
             coordsA="data",
             coordsB="data",
+            color=color
         )
 
     def __len__(self):
@@ -142,7 +146,7 @@ class LineProfile:
             mode="nearest"
         )
 
-    def _plot_over_channel(self, axis):
+    def _plot_over_channel(self, axis, color="black"):
         
         y_min, y_max = axis.get_ylim()
         yrange = y_max - y_min
@@ -204,7 +208,31 @@ class LineProfile:
         axis.add_artist(cp_line)
         axis.add_artist(cp_f)
         return axis
+
+
+def unit_vector(vector):
+    """ Returns the unit vector of the vector.  """
+    return vector / np.linalg.norm(vector)
+
+
+def angle_between(v1, v2):
+    """ Returns the angle in radians between vectors 'v1' and 'v2'::
+
+            >>> angle_between((1, 0, 0), (0, 1, 0))
+            1.5707963267948966
+            >>> angle_between((1, 0, 0), (1, 0, 0))
+            0.0
+            >>> angle_between((1, 0, 0), (-1, 0, 0))
+            3.141592653589793
+    """
     
+    if np.linalg.norm(v1) == 0 or  np.linalg.norm(v2) == 0:
+        return 0
+    v1_u = unit_vector(v1)
+    v2_u = unit_vector(v2)
+    return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+
+
 def get_2DFFT(image):
     '''
     Calculates the 2D fourier transform of a bitmap image
@@ -292,12 +320,12 @@ def Gauss2d(M, **params):
     x, y = M
     arr = np.zeros(x.shape)
     p = []
-    if type(params) is dict:
+    if isinstance(params, dict):
         for key in ["XCEN", "YCEN", "SIGMAX", "SIGMAY", "AMP", "BACKGROUND", "ANGLE"]:
             p.append(params[key])
 
 
-    print(p)
+    #print(p)
     for i in range(len(p)//7):
 
         rcen_x = p[i*7] * np.cos(np.radians(p[i*7+6])) - p[i*7+1] * np.sin(np.radians(p[i*7+6]))
@@ -424,3 +452,47 @@ def sine(x, a, b, c, d):
 # cosine wave 
 def cosine(x, a, b, c, d):
     return a*np.cos(b*x + c) + d
+
+
+def single_gaussian_function(params, M, data, *args):
+    """
+    Function to feed `lmfit.minimize` for a single 2D gaussian function fit
+    
+    Parameters
+    ----------
+    params : `lmfit.Parameters`
+        set of parameters for gaussian function
+            "XCEN" : x centre for 2d gaussian
+            "YCEN" : y centre for 2d gaussian
+            "SIGMAX" : standard deviation in x for 2d gaussian
+            "SIGMAY" : standard deviation in y for 2d gaussian
+            "AMP" : amplitude of 2d gaussian
+            "BACKGROUND" : background of 2d gaussian
+            "ANGLE" : angle of rotation of the 2d gaussian
+    M : [X,Y] tuple of numpy.array 
+        X and Y arrays for X and Y data. X and Y data should each be 2-dimensional
+    data : numpy.array
+        Z data to be fitted with a single 2D gaussian
+    
+    
+    Returns
+    --------
+    point - data : np.array
+        The difference between the measured data and the simulated 2d gaussian at points X,Y
+    """
+   
+    g1_params = {
+        "XCEN" : params["XCEN"].value,
+        "YCEN" : params["YCEN"].value,
+        "SIGMAX" : params["SIGMAX"].value,
+        "SIGMAY" : params["SIGMAY"].value,
+        "AMP" : params["AMP"].value,
+        "BACKGROUND" : params["BACKGROUND"].value,
+        "ANGLE" : params["ANGLE"].value,
+    }
+    
+    
+    x, y = M
+    
+    point = Gauss2d(M, **g1_params)
+    return point - data

@@ -5,6 +5,7 @@ from vlabs.spm.scanningprobe import (
     load_files,
     file_preview,
     edge_detection_widget,
+    plot_map,
 )
 
 from vlabs.spm.utils import (

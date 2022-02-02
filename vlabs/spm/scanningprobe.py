@@ -8,11 +8,13 @@ import pycroscopy as px
 from scipy.optimize import curve_fit
 import scipy
 from ipywidgets import interact 
+from tqdm import tqdm
+import pySPM
 
 import ipywidgets as widgets
 import skimage.feature
 
-
+import matplotlib as mpl
 from matplotlib.patches import ConnectionPatch
 
 from vlabs.spm.igor_ibw import IgorIBWTranslator
@@ -106,18 +108,46 @@ class AsylumDART(object):
             raise ValueError("Need to convert .ibw file to .h5 beforehand. use convert_to_h5(directory)")
         elif fname.endswith(".h5"):
             self.file = h5py.File( os.path.join(data_dir, fname), mode='r' )
+            d = self._get_channels(fmt="arr")
+
+            self.topography = d[0].T
+            self.amplitude_1 = d[1].T
+            self.amplitude_2 = d[2].T
+            self.phase_1 = d[3].T
+            self.phase_2 = d[4].T
+            self.frequency = d[5].T
+
+            self.channels = dict(
+                {
+                    "Topography" : self.topography,
+                    "Amplitude_1" : self.amplitude_1,
+                    "Amplitude_2" : self.amplitude_2,
+                    "Phase_1" : self.phase_1,
+                    "Phase_2" : self.phase_2,
+                    "Frequency" : self.frequency,
+                }
+            )
+            self.pos_max = usid.hdf_utils.get_attributes(self.file['Measurement_000'])['ScanSize']/10**(-6)
+        elif fname.endswith(".spm"):
+            self.file = pySPM.Bruker(os.path.join(data_dir, fname))
+            t = self.file.get_channel("Height")
+            d =  self.file.get_channel("Deflection Error")
+            self.topography = t.pixels * 10**(-9)
+            self.deflection = d.pixels
+
+            #TODO: get metadata from SPM files
+            self.pos_max = t.get_extent()[1]
+            self.channels = dict(
+                {
+                    "Topography" : self.topography,
+                    "Deflection_Error" : self.deflection,
+                }
+            )
         else:
             raise ValueError("filetype needs to be .h5")
         
         self.filename = os.path.basename(fname)
-        d = self._get_channels(fmt="arr")
-        self.channel_edges = {}
-        self.topography = d[0].T
-        self.amplitude_1 = d[1].T
-        self.amplitude_2 = d[2].T
-        self.phase_1 = d[3].T
-        self.phase_2 = d[4].T
-        self.frequency = d[5].T
+        self.channel_edges = {}        
         self.factors = dict(
             {
                 "Topography" : 1e-9,
@@ -126,25 +156,23 @@ class AsylumDART(object):
                 "Phase_1" : 1,
                 "Phase_2" : 1,
                 "Frequency" : 1,
+                "Deflection Error" : 1
             }
         )
-        self.channels = dict(
-            {
-                "Topography" : self.topography,
-                "Amplitude_1" : self.amplitude_1,
-                "Amplitude_2" : self.amplitude_2,
-                "Phase_1" : self.phase_1,
-                "Phase_2" : self.phase_2,
-                "Frequency" : self.frequency
-            }
-        )
+
         self.line_slice =  {
             "Topography" : None,
             "Amplitude_1" : None,
             "Amplitude_2" : None,
             "Phase_1" : None,
             "Phase_2" : None,
-            "Frequency" : None
+            "Frequency" : None,
+            "FFT_Topography" : None,
+            "FFT_Amplitude_1" : None,
+            "FFT_Amplitude_2" : None,
+            "FFT_Phase_1" : None,
+            "FFT_Phase_2" : None,
+            "Deflection Error" : None
         }
         self.px = {            
             "Topography" : [],
@@ -153,6 +181,12 @@ class AsylumDART(object):
             "Phase_1" : [],
             "Phase_2" : [],
             "Frequency" : [],
+            "FFT_Topography" : [],
+            "FFT_Amplitude_1" : [],
+            "FFT_Amplitude_2" : [],
+            "FFT_Phase_1" : [],
+            "FFT_Phase_2" : [],
+            "Deflection Error" : [],
         }
         self.py = {
             "Topography" : [],
@@ -161,6 +195,12 @@ class AsylumDART(object):
             "Phase_1" : [],
             "Phase_2" : [],
             "Frequency" : [],
+            "FFT_Topography" : [],
+            "FFT_Amplitude_1" : [],
+            "FFT_Amplitude_2" : [],
+            "FFT_Phase_1" : [],
+            "FFT_Phase_2" : [],
+            "Deflection Error" : [],
         }
         self.line_profile_x = {
             "Topography" : None,
@@ -168,11 +208,17 @@ class AsylumDART(object):
             "Amplitude_2" : None,
             "Phase_1" : None,
             "Phase_2" : None,
-            "Frequency" : None
+            "Frequency" : None,
+            "FFT_Topography" : None,
+            "FFT_Amplitude_1" : None,
+            "FFT_Amplitude_2" : None,
+            "FFT_Phase_1" : None,
+            "FFT_Phase_2" : None,
+            "Deflection Error" : None
         }
 
         self.axis_length = len(self.topography)
-        self.pos_max = usid.hdf_utils.get_attributes(self.file['Measurement_000'])['ScanSize']/10**(-6)
+        
         self.x_vec = np.linspace(0, self.pos_max, self.axis_length)
 
         self.mask = None
@@ -242,16 +288,29 @@ class AsylumDART(object):
             width = popt[2]
             zmin = -nsig * width
             zmax = nsig * width
-        #if plot:
-        #    fig, ax = plt.subplots()
-        #    _ = ax.hist(data.flatten(), bins=200)
-        #    ax.plot(bin_centres, func(bin_centres, *popt))
+        
+        if plot:
+            fig, ax = plt.subplots()
+            _ = ax.hist(data.flatten(), bins=200)
+            ax.plot(bin_centres, func(bin_centres, *popt))
         return (zmin, zmax)
 
     def apply_mask(self, channel, threshold):
         """
         Applies a mask to a channel based of a specific threshold
         """
+
+    def get_2D_fft(self, channel):
+        """
+        Calculates the 2-dimensional FFT of a given channel and
+        adds it to the list of channels in the object
+
+        """
+        fft =  np.fft.fftshift(np.fft.fft2(self.channels[channel]))
+
+        self.channels[f"FFT_{channel}"] = np.abs(fft)
+        
+        return np.abs(fft)
         
     def _get_channels(self, fmt="arr"):
         """
@@ -302,6 +361,8 @@ class AsylumDART(object):
         zrange=None, 
         ax=None, 
         fig=None, 
+        rotate=False,
+        log=False,
         **kwargs
     ):
         """
@@ -327,6 +388,13 @@ class AsylumDART(object):
             "Topography" : gaussian,
             "Amplitude_1" : skewed_gauss,
             "Phase_1"     : None,
+            "Amplitude_2" : skewed_gauss,
+            "Phase_2"     : None,
+            "FFT_Topography" : gaussian,
+            "FFT_Ampltide_1" : gaussian,
+            "FFT_Phase_1" : gaussian,
+            "FFT_Amplitude_2" : gaussian,
+            "FFT_Phase_2" : gaussian,
         }
         # Check if channel is a string specifying the PFM channel to plot
         if type(channel) is str:
@@ -352,15 +420,21 @@ class AsylumDART(object):
         if ax is None:
             fig, ax = plt.subplots(figsize=(3,3))   
 
+        if rotate:
+            data = np.rot90(data)
+
+        if log:
+            data = np.log10(data)
+
         if zrange is None:
             (zmin, zmax) = self.get_map_range(channel, channel_dict[channel])
-            imhandle, cbar = usid.plot_utils.plot_map(ax, data/factor, cmap=cmap, cbar_label=units, vmin=zmin/factor, vmax=zmax/factor, x_vec = self.x_vec, y_vec= self.x_vec, **kwargs)
+            imhandle, cbar = plot_map(ax, data/factor, cmap=cmap, cbar_label=units, vmin=zmin/factor, vmax=zmax/factor, x_vec = self.x_vec, y_vec= self.x_vec, **kwargs)
             #axis.set_title(title)    
             ax.set_xlabel('X ($\\mathrm{\\mu}$m)')
             ax.set_ylabel('Y ($\\mathrm{\\mu}$m)')
         else:
             
-            imhandle, cbar = usid.plot_utils.plot_map(ax, data/factor, cmap=cmap, cbar_label=units, vmin=zrange[0], vmax=zrange[1], x_vec = self.x_vec, y_vec=self.x_vec, **kwargs)
+            imhandle, cbar = plot_map(ax, data/factor, cmap=cmap, cbar_label=units, vmin=zrange[0], vmax=zrange[1], x_vec = self.x_vec, y_vec=self.x_vec, **kwargs)
             #axis.set_title(title)        
             ax.set_xlabel('X ($\\mathrm{\\mu}$m)')
             ax.set_ylabel('Y ($\\mathrm{\\mu}$m)')
@@ -388,9 +462,18 @@ class AsylumDART(object):
 
         if "cmap" not in kwargs.keys():
             kwargs.update(cmap = "afmhot")
+        
+        if "color" in kwargs.keys():
+            color = kwargs.pop("color")
+        else:
+            color = "black"
 
         factor = 1
         # Instantiate scale factor and units if needed
+        if "FFT" in channel:
+            zlabel = "Integrated Height"
+            units = None
+            factor = 1
         if "Topography" in channel:
             zlabel = "Integrated Height"
             units = "nm"
@@ -403,6 +486,10 @@ class AsylumDART(object):
             zlabel = "Integrated Phase"
             units = "degrees"
             factor = 1
+        elif "FFT" in channel:
+            zlabel= "Integrated signal"
+            units = "a.u."
+            factor=1
 
         fig, ax = plt.subplots(1,2)
         
@@ -418,14 +505,14 @@ class AsylumDART(object):
         def onclick(event):
             if len(pos) == 0:
                 # plot first scatter
-                scatter = ax[0].scatter(event.xdata, event.ydata, s=5, color="black")
+                scatter = ax[0].scatter(event.xdata, event.ydata, s=5, color=color)
                 pos.append(scatter)
                 self.px[channel].append(event.xdata)
                 self.py[channel].append(event.ydata)
 
             elif len(pos) == 1:
                 # plot second scatter and line
-                scatter = ax[0].scatter(event.xdata, event.ydata, s=5, color="black")
+                scatter = ax[0].scatter(event.xdata, event.ydata, s=5, color=color)
                 pos.append(scatter)
                 self.px[channel].append(event.xdata)
                 self.py[channel].append(event.ydata)
@@ -437,6 +524,7 @@ class AsylumDART(object):
                     (x_values[0], y_values[0]),
                     (x_values[1], y_values[1]),
                     width=width,
+                    color=color
                 )
 
 
@@ -456,7 +544,6 @@ class AsylumDART(object):
                 ax[1].plot(
                     lp.s_dist,
                     lp.line_profile / factor,
-                    color="black",
                     label=f"{channel} line profile",
                 )
                 ax[1].set(xlabel="Distance ($\\mathrm{\\mu}}$m)", ylabel=f"{zlabel} ({units})")
@@ -951,14 +1038,17 @@ class AsylumSF(object):
 
 def convert_to_h5(directory):
     trans = IgorIBWTranslator()
-    c = 1
-    for file in os.listdir( directory ):
+    for idx, file in tqdm(enumerate(os.listdir(directory))):
         if file.endswith(".ibw"):
+            fname, ext = file.split(".")
+            tmp = fname + ".h5"
+            print(tmp)
+            if tmp in os.listdir(directory):
+                continue
             tmp = trans.translate( os.path.join(directory, file))
             h5_file = h5py.File( tmp, mode='r' ) 
-            print(os.path.join( directory, file ) + " - " + str(c))
+            print(os.path.join( directory, file ) + " - " + str(idx+1))
             h5_file.close()
-            c = c + 1
     print('Completed')
     return
     
@@ -1097,4 +1187,197 @@ def edge_detection_widget(
     widgets.interact(update, sigma = sigma_slider, 
                         low_threshold = low_threshold_slider,
                         high_threshold = high_threshold_slider)
+
+def plot_map(axis, img, show_xy_ticks=True, show_cbar=True, x_vec=None, y_vec=None,
+             num_ticks=4, stdevs=None, cbar_label=None, tick_font_size=None, infer_aspect=False, **kwargs):
+    """
+    Plots an image within the given axis with a color bar + label and appropriate X, Y tick labels.
+    This is particularly useful to get readily interpretable plots for papers
+
+    Parameters
+    ----------
+    axis : matplotlib.axes.Axes object
+        Axis to plot this image onto
+    img : 2D numpy array with real values
+        Data for the image plot
+    show_xy_ticks : bool, Optional, default = None, shown unedited
+        Whether or not to show X, Y ticks
+    show_cbar : bool, optional, default = True
+        Whether or not to show the colorbar
+    x_vec : 1-D array-like or Number, optional
+        if an array-like is provided, these will be used for the tick values on the X axis
+        if a Number is provided, this will serve as an extent for tick values in the X axis.
+        For example x_vec=1.5 would cause the x tick labels to range from 0 to 1.5
+    y_vec : 1-D array-like or Number, optional
+        if an array-like is provided - these will be used for the tick values on the Y axis
+        if a Number is provided, this will serve as an extent for tick values in the Y axis.
+        For example y_vec=225 would cause the y tick labels to range from 0 to 225
+    num_ticks : unsigned int, optional, default = 4
+        Number of tick marks on the X and Y axes
+    stdevs : unsigned int (Optional. Default = None)
+        Number of standard deviations to consider for plotting.  If None, full range is plotted.
+    cbar_label : str, optional, default = None
+        Labels for the colorbar. Use this for something like quantity (units)
+    tick_font_size : unsigned int, optional, default = None
+        Font size to apply to x, y, colorbar ticks and colorbar label
+    infer_aspect : bool, Optional. Default = False
+        Whether or not to adjust the aspect ratio of the image based on the provided x_vec and y_vec
+        The values of x_vec and y_vec will be assumed to have the same units.
+    kwargs : dictionary
+        Anything else that will be passed on to matplotlib.pyplot.imshow
+
+    Returns
+    -------
+    im_handle : handle to image plot
+        handle to image plot
+    cbar : handle to color bar
+        handle to color bar
+
+    Note
+    ----
+    The origin of the image will be set to the lower left corner. Use the kwarg 'origin' to change this
+
+    """
+    if not isinstance(axis, mpl.axes.Axes):
+        raise TypeError('axis must be a matplotlib.axes.Axes object')
+    if not isinstance(img, np.ndarray):
+        raise TypeError('img should be a numpy array')
+    if not img.ndim == 2:
+        raise ValueError('img should be a 2D array')
+    if not isinstance(show_xy_ticks, bool):
+        raise TypeError('show_xy_ticks should be a boolean value')
+    if not isinstance(show_cbar, bool):
+        raise TypeError('show_cbar should be a boolean value')
+    # checks for x_vec and y_vec are done below
+    if num_ticks is not None:
+        if not isinstance(num_ticks, int):
+            raise TypeError('num_ticks should be a whole number')
+        if num_ticks < 2:
+            raise ValueError('num_ticks should be at least 2')
+    if stdevs is not None:
+        data_mean = np.mean(img)
+        data_std = np.std(img)
+        kwargs.update({'clim': [data_mean - stdevs * data_std, data_mean + stdevs * data_std]})
+
+    kwargs.update({'origin': kwargs.pop('origin', 'lower')})
+
+    if show_cbar:
+        vector = np.squeeze(img)
+        if not isinstance(vector, np.ndarray):
+            raise TypeError('vector should be of type numpy.ndarray. Provided object of type: {}'.format(type(vector)))
+        if np.max(np.abs(vector)) == np.max(vector):
+            exponent = np.log10(np.max(vector))
+        else:
+            # negative values
+            exponent = np.log10(np.max(np.abs(vector)))
         
+        y_exp = int(np.floor(exponent))
+        z_suffix = ''
+        if y_exp < -2 or y_exp > 3:
+            img = np.squeeze(img) / 10 ** y_exp
+            z_suffix = ' x $10^{' + str(y_exp) + '}$'
+
+    assert isinstance(show_xy_ticks, bool)
+
+    ########################################################################################################
+
+    def set_ticks_for_axis(tick_vals, is_x):
+        if is_x:
+            tick_vals_var_name = 'x_vec'
+            tick_set_func = axis.set_xticks
+            tick_labs_set_func = axis.set_xticklabels
+        else:
+            tick_vals_var_name = 'y_vec'
+            tick_set_func = axis.set_yticks
+            tick_labs_set_func = axis.set_yticklabels
+
+        img_axis = int(is_x)
+        img_size = img.shape[img_axis]
+        chosen_ticks = np.linspace(0, img_size - 1, num_ticks, dtype=int)
+
+        if tick_vals is not None:
+            if isinstance(tick_vals, (int, float)):
+                if tick_vals > 0.01:
+                    tick_labs = [str(np.round(ind * tick_vals / img_size, 2)) for ind in chosen_ticks]
+                else:
+                    tick_labs = ['{0:.1E}'.format(ind * tick_vals / img_size) for ind in chosen_ticks]
+                    print(tick_labs)
+                tick_vals = np.linspace(0, tick_vals, img_size)
+            else:
+                if not isinstance(tick_vals, (np.ndarray, list, tuple, range)) or len(tick_vals) != img_size:
+                    raise ValueError(
+                        '{} should be array-like with shape equal to axis {} of img'.format(tick_vals_var_name,
+                                                                                            img_axis))
+                if np.max(tick_vals) > 0.01:
+                    tick_labs = [str(np.round(tick_vals[ind], 2)) for ind in chosen_ticks]
+                else:
+                    tick_labs = ['{0:.1E}'.format(tick_vals[ind]) for ind in chosen_ticks]
+        else:
+            tick_labs = [str(ind) for ind in chosen_ticks]
+
+        tick_set_func(chosen_ticks)
+        tick_labs_set_func(tick_labs)
+
+        if tick_font_size is not None:
+            for tick in axis.xaxis.get_major_ticks():
+                tick.label.set_fontsize(tick_font_size)
+            for tick in axis.yaxis.get_major_ticks():
+                tick.label.set_fontsize(tick_font_size)    
+
+        return tick_vals
+
+    ########################################################################################################
+
+    if show_xy_ticks is True or x_vec is not None:
+        x_vec = set_ticks_for_axis(x_vec, True)
+    else:
+        axis.set_xticks([])
+
+    if show_xy_ticks is True or y_vec is not None:
+        y_vec = set_ticks_for_axis(y_vec, False)
+    else:
+        axis.set_yticks([])
+
+    if infer_aspect:
+        # Aspect ratio determined by this function will take precedence.
+        _ = kwargs.pop('infer_aspect', None)
+
+        """
+        At this stage, if x_vec and y_vec are not None, they should be arrays.
+        
+        This will be very useful when one dimension is coarsely sampled while another is finely sampled
+        and we want to visualize the image with the physically correct aspect ratio.
+        This CANNOT be performed automatically due to potentially incompatible units which are unknown to this func.
+        """
+
+        if x_vec is not None or y_vec is not None:
+            x_range = x_vec.max() - x_vec.min()
+            y_range = y_vec.max() - y_vec.min()
+            kwargs.update({'aspect': (y_range / x_range) * (img.shape[1] / img.shape[0])})
+
+    im_handle = axis.imshow(img, **kwargs)
+
+    cbar = None
+    if not isinstance(show_cbar, bool):
+        show_cbar = False
+
+    if show_cbar:
+        cbar = plt.colorbar(im_handle, ax=axis, orientation='vertical',
+                            fraction=0.046, pad=0.04, use_gridspec=True)
+        # cbar = axis.cbar_axes[count].colorbar(im_handle)
+
+        if cbar_label is not None:
+            if not isinstance(cbar_label, str):
+                raise TypeError('cbar_label should be a string')
+
+            if tick_font_size is not None:
+                cbar.set_label(cbar_label + z_suffix)
+            else:
+                cbar.set_label(cbar_label + z_suffix, fontsize=tick_font_size)
+        else:
+            if z_suffix != '':
+                cbar.set_label(z_suffix)
+
+        if tick_font_size is not None:
+            cbar.ax.tick_params(labelsize=tick_font_size)
+    return im_handle, cbar        
