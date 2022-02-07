@@ -26,6 +26,12 @@ import pandas as pd
 import numpy as np
 import h5py
 import warnings
+from vlabs.spm.utils import(
+    unit_vector,
+    angle_between,
+    Gauss2d,
+)
+from lmfit import Minimizer, Parameter
 
 def catalogue(start, stop, data_folder=None, prefix="TPN"):
     """
@@ -189,6 +195,7 @@ class TaipanNexus(object):
             delimiter="\t"
         
         np.savetxt(f"{filename}.{filetype}", df, delimiter=delimiter)
+
 
 class TaipanCatalogue(object):
     """
@@ -462,6 +469,123 @@ class TaipanRSM(object):
         fig.colorbar(cs, label="Counts", ax=ax, shrink=0.9)
 
         return fig, ax
+
+
+class Cycloid:
+    """
+    Describes and simulates the neutron scattering signal of an antiferromagnetic spin cycloid 
+    with a given centre position and wavelength (TODO: add robust splitting direction input. Currently 
+    assumes a splitting direction of [11-2]).
+
+    Parameters
+    ----------
+    wavelength : float or `refnx.analysis.Parameter`
+        Wavelength of the cycloid defining it's repeating unit 
+        and corresponding splitting in reciprocal space
+    position : tuple
+        Tuple of the x and y centre position between the split cycloidal peaks
+    params : dict
+        dict of gaussian parameters to input to `vlabs.utils.Gauss2D`.
+    """
+    def __init__(self, wavelength, position, splitting=(-1,-1,2), params=None):
+        
+
+        self.x_centre = Parameter(
+            value = position[0],
+            name="XCEN",
+            vary=False,
+        )
+
+        self.y_centre = Parameter(
+            name="YCEN",
+            value = position[1],
+            vary=False,
+        )
+
+        if not isinstance(wavelength, Parameter):
+            self.wavelength = Parameter(
+                value=wavelength,
+                name="WAVELENGTH",
+                min=400,
+                max=1500,
+            )
+        else:
+            self.wavelength = wavelength
+
+        self.splitting = splitting
+        self.position = position
+
+        self.calculate_cycloid()
+        
+        if params:
+            if isinstance(params[0], Parameter):
+                self.params = params
+            elif isinstance(params[0], float):
+                self.params["XCEN"] = Parameter(value=self.x_centre.value,name="XCEN", vary=False)
+                self.params["YCEN"] = Parameter(value=self.y_centre.value,name="YCEN", vary=False)
+                self.params["SIGMAX"] = Parameter(value=params["SIGMAX"], name="SIGMAX", min=1e-5, max=1, vary=True),
+                self.params["SIGMAY"] = Parameter(value=params["SIGMAY"], name="SIGMAY", min=1e-5, max=1, vary=True),
+                self.params["AMP"] = Parameter(value=params["AMP"], name="AMP", min=0, max=10000, vary=True),
+                self.params["BACKGROUND"] = Parameter(value=params["BACKGROUND"], name="BACKGROUND", min=0, max=1000, vary=True),
+                self.params["ANGLE"] = Parameter(value=params["ANGLE"],name="ANGLE", min=0, max=360, vary=True)
+        else:
+            self.params = {
+                "XCEN" : Parameter(value=self.x_centre.value,name="XCEN", vary=False),
+                "YCEN" : Parameter(value=self.y_centre.value,name="YCEN", vary=False),
+                "SIGMAX" : Parameter(value=0.01, name="SIGMAX", min=1e-5, max=1, vary=True),
+                "SIGMAY" : Parameter(value=0.01, name="SIGMAY", min=1e-5, max=1, vary=True),
+                "AMP" : Parameter(value=400, name="AMP", min=0, max=10000, vary=True),
+                "BACKGROUND" : Parameter(value=100, name="BACKGROUND", min=0, max=1000, vary=True),
+                "ANGLE" : Parameter(value=0,name="ANGLE", min=0, max=360, vary=True)
+            }
+    
+    def load_map(self, X, Y):
+        """
+        Load experimental qy and qz arrays to simulate data on
+
+        Parameters
+        ----------
+        X : np.array 
+            X values for reciprocal space map
+        Y : np.array
+            Y values for reciprocal space map
+        """
+        self.x_data = X
+        self.y_data = Y
+    
+    def calculate_cycloid(self):
+        q_space = 2*np.pi/self.wavelength.value
+        # Get angle between cycloid splitting direction and [001]
+        angle = angle_between(np.array(self.splitting), (0,0,1))
+        split_x = q_space * np.cos(angle)
+        split_y = q_space * np.sin(angle)
+        
+        self.delta_x = split_x/2
+        self.delta_y = split_y/2
+
+        self.satellite_1 = self.position + np.array([-self.delta_x, self.delta_y])
+        self.satellite_2 = self.position + np.array([self.delta_x, -self.delta_y])
+        return 
+
+    def simulate_data(self):
+
+        self.z_data = np.zeros(self.x_data.shape)
+        for satellite in [self.satellite_1, self.satellite_2]:
+            self.params["XCEN"].value = satellite[0]
+            self.params["YCEN"].value = satellite[1]
+            self.z_data += Gauss2d([self.x_data,self.y_data], **self.params)
+            
+        return self.z_data
+
+    def simulate_datapoint(self, x, y):
+        datapoint = np.zeros(x.shape)
+        for satellite in [self.satellite_1, self.satellite_2]:
+            self.params["XCEN"].value = satellite[0]
+            self.params["YCEN"].value = satellite[1]
+            datapoint += Gauss2d([x,y], **self.params)
+
+        return datapoint
+
 
 
 def average_neighbour_difference(array):
