@@ -165,7 +165,7 @@ class NIST_Catalogue(object):
                     d[f"a{idx+1}_step"] = ln[2]
                     d[f"a{idx+1}_end"] = ln[3]
 
-                ln.readline()
+                f.readline()
 
             # Measured data
             ln = f.readline()
@@ -180,13 +180,21 @@ class NIST_Catalogue(object):
 
             for idx, line in enumerate(lines):
                 line = line.split()
-                q_x[idx] = float(line[0])
-                q_y[idx] = float(line[1])
-                q_z[idx] = float(line[2])
-                E[idx] = float(line[3])
-                T_act[idx] = float(line[4])
-                mins[idx] = float(line[5])
-                counts[idx] = float(line[6])
+                if len(line) ==  7:
+                    q_x[idx] = float(line[0])
+                    q_y[idx] = float(line[1])
+                    q_z[idx] = float(line[2])
+                    E[idx] = float(line[3])
+                    T_act[idx] = float(line[4])
+                    mins[idx] = float(line[5])
+                    counts[idx] = float(line[6])
+                elif len(line) == 6:
+                    q_x[idx] = float(line[0])
+                    q_y[idx] = float(line[1])
+                    q_z[idx] = float(line[2])
+                    E[idx] = float(line[3])
+                    mins[idx] = float(line[4])
+                    counts[idx] = float(line[5])       
 
             d["qx"] = q_x
             d["qy"] = q_y
@@ -216,24 +224,14 @@ class NIST_RSM(object):
     verbose     :   bool
         Mainly for debugging and checking things
     """
-    def __init__(self, directory, prefix=None, file_range=(0,1e10), verbose=False):
+    def __init__(self, directory, prefix=None, files=[], verbose=False):
         self.scans = []
         self.step_axis = []
         self.prefix = prefix
 
-        for file in os.listdir(directory):
-            if verbose:
-                print(file)
-            if not (file.endswith(".bt4") or file.endswith(".ng5")):
-                print("hmm")
-                continue
-            if not file.startswith(prefix):
-                print("heck")
-                continue
-            if file_range[0] <= nist_datafile_number(file, prefix=prefix, filetype=".bt4") <= file_range[1]:
-                self.scans.append(NIST_TripleAxis(os.path.join(directory, file)))
-            elif file_range[0] <= nist_datafile_number(file, prefix=prefix, filetype=".ng5") <= file_range[1]:
-                self.scans.append(NIST_TripleAxis(os.path.join(directory, file)))
+        for file in files:
+            self.scans.append(NIST_TripleAxis(os.path.join(directory, file)))
+
         motor_averages = {}
         for scan in self.scans:
             for axis in ["qx", "qy", "qz"]:

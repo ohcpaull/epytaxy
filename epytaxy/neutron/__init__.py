@@ -1,4 +1,4 @@
-from vlabs.neutron.taipan import (
+from epytaxy.neutron.taipan import (
     catalogue,
     TaipanNexus,
     TaipanCatalogue,
@@ -8,7 +8,7 @@ from vlabs.neutron.taipan import (
     datafile_number,
 )
 
-from vlabs.neutron.nist import (
+from epytaxy.neutron.nist import (
     NIST_TripleAxis,
     NIST_Catalogue,
     NIST_RSM,

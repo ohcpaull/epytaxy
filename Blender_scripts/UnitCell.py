@@ -88,6 +88,63 @@ def make_strut(name, start_point, end_point, radius=1, res=16):
 
     return obj, mesh
 
+def make_arrow_endpoints(name, start, end, radius=0.2, radius_ratio=2):
+    
+    dx = float(end[0]) - float(start[0])
+    dy = float(end[1]) - float(start[1])
+    dz = float(end[2]) - float(start[2])
+
+    
+    midpoint = np.array([dx/2, dy/2, dz/2])
+    length = np.sqrt(dx**2 + dy**2 + dz**2)
+    
+    vec = np.array([dx, dy, dz])
+    xy_vec = np.array([dx, dx, 0])
+    
+    x_rot = angle_between([0,0,1], vec)
+    z_rot = angle_between([1,0,0], xy_vec)
+    rotation = np.array([x_rot, 0, z_rot])
+    
+    strut = bpy.ops.mesh.primitive_cylinder_add(
+        vertices=16, 
+        radius=radius, 
+        depth=length, 
+        location=(float(midpoint[0]),float(midpoint[1]),float(midpoint[2])), 
+        rotation=rotation
+    )
+    obj1 = bpy.context.object
+    obj1.name = f"strut_{name}"
+    rotator = R.from_euler("xyz", rotation, degrees=False)
+    cone_pos = midpoint + length/2 * unit_vector(rotator.apply([0,0,1]))
+    print(unit_vector(rotator.apply([0,0,1])))
+    
+    
+    
+    cone = bpy.ops.mesh.primitive_cone_add(
+        radius1=radius * radius_ratio, 
+        radius2=0, 
+        depth=length / radius_ratio, 
+        enter_editmode=False, 
+        align='WORLD', 
+        location=cone_pos, 
+        rotation=rotation,
+        scale=(1, 1, 1)
+    )
+    obj2 = bpy.context.object
+    obj2.name = f"cone_{name}"
+    
+    bpy.context.view_layer.objects.active = obj1
+    bpy.context.view_layer.objects.active = obj2
+
+    bpy.ops.object.join()
+    
+    obj = bpy.context.object
+    obj.name = f"{name}"
+    mesh = obj.data
+    mesh.name = f"mesh_{name}"
+
+    return obj, mesh
+
 def make_arrow(name, midpoint, length=1, radius=0.2, rotation=(0,0,0), radius_ratio=3):
     """
     Make an arrowbased on the centre position and rotation
@@ -309,7 +366,7 @@ class UnitCell(object):
                         name=f"strut_{midpt[0]:.1f}_{midpt[1]:.1f}_{midpt[2]:.1f}",
                         start_point=atom,
                         end_point=nearest_neighbour,
-                        radius=0.05,
+                        radius=0.1,
                         res=8,
                     )
                     self.struts.append(cyl_obj) 
@@ -322,12 +379,28 @@ class UnitCell(object):
 #for object in objects_to_delete:
 #    bpy.data.objects.remove(object, do_unlink=True)
         
-for x in range(10):
-    UnitCell(pos=(-x,x,0), spin_rot=(20*x,54,45),)
-    UnitCell(pos=(0,-x,x), spin_rot=(20*x,35,35),)
-    #UnitCell(pos=(x,0,-x), spin_rot=(0,10*x,0),)
+#for x in range(10):
+#    UnitCell(pos=(-x,x,0), spin_rot=(90,270,10*x),)
+#    UnitCell(pos=(0,-x,x), spin_rot=(45,30,10*x),)
+#    UnitCell(pos=(x,0,-x), spin_rot=(180,45,10*x),)
 
+for x in range(3):
+    for y in range(3):
+        for z in range(3):
+            
+            UnitCell(pos=(x,y,z), a_pc=1)
 
+a_pc = 3.95
+"""
+make_arrow_endpoints("P1+",[0,0,0], np.array([1.5,1.5,1.5])*a_pc, radius=0.15)
+make_arrow_endpoints("P2+",[0,0,0], np.array([-1.5,1.5,1.5])*a_pc, radius=0.15)
+make_arrow_endpoints("P3+",[0,0,0], np.array([1.5,-1.5,1.5])*a_pc, radius=0.15)
+make_arrow_endpoints("P1-",[0,0,0], np.array([1.5,1.5,-1.5])*a_pc, radius=0.15)
+make_arrow_endpoints("P4+",[0,0,0], np.array([-1.5,-1.5,1.5])*a_pc, radius=0.15)
+make_arrow_endpoints("P3-",[0,0,0], np.array([1.5,-1.5,-1.5])*a_pc, radius=0.15)
+make_arrow_endpoints("P2-",[0,0,0], np.array([-1.5,1.5,-1.5])*a_pc, radius=0.15)
+make_arrow_endpoints("P4-",[0,0,0], np.array([-1.5,-1.5,-1.5])*a_pc, radius=0.15)
+"""
 # New Collection
 O_coll = bpy.data.collections.new("O_atoms")
 # Add collection to scene collection
@@ -397,5 +470,4 @@ for obj in to_unlink:
         pass
 
                 
-
 

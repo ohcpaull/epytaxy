@@ -1,4 +1,4 @@
-from vlabs.spm.scanningprobe import (
+from epytaxy.spm.scanningprobe import (
     AsylumDART,
     AsylumSF,
     convert_to_h5,
@@ -8,7 +8,7 @@ from vlabs.spm.scanningprobe import (
     plot_map,
 )
 
-from vlabs.spm.utils import (
+from epytaxy.spm.utils import (
     gaussian,
     skewed_gauss,
     rayleigh,
@@ -24,6 +24,6 @@ from vlabs.spm.utils import (
     cosine,
 )
 
-from vlabs.spm.igor_ibw import (
+from epytaxy.spm.igor_ibw import (
     IgorIBWTranslator
 )

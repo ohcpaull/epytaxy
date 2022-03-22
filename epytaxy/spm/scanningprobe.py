@@ -17,9 +17,9 @@ import skimage.feature
 import matplotlib as mpl
 from matplotlib.patches import ConnectionPatch
 
-from vlabs.spm.igor_ibw import IgorIBWTranslator
+from epytaxy.spm.igor_ibw import IgorIBWTranslator
 
-from vlabs.spm.utils import(
+from epytaxy.spm.utils import(
     gaussian,
     skewed_gauss,
     rayleigh,
