@@ -85,7 +85,7 @@ def get_version_info():
     return FULLVERSION, GIT_REVISION
 
 
-def write_version_py(filename='vlabs/version.py'):
+def write_version_py(filename='epytaxy/version.py'):
     cnt = """
 # THIS FILE IS GENERATED FROM REFNX SETUP.PY
 short_version = '%(version)s'
@@ -127,17 +127,17 @@ with open("README.md", "r") as fh:
 
 # refnx setup
 info = {
-        'name': 'vlabs',
+        'name': 'epytaxy',
         'description': 'Experimental data reading and analysis tools for TFF',
         'long_description': 'long_description',
         'long_description_content_type': "text/markdown",
         'author': 'Oliver Paull',
-        'author_email': 'ohcpaull+vlabs@gmail.com',
+        'author_email': 'ohcpaull@gmail.com',
         'license': 'BSD',
-        'url': 'https://github.com/ohcpaull/valanoorlabs',
-        'project_urls': {"Bug Tracker": "https://github.com/ohcpaull/valanoorlabs/issues",
+        'url': 'https://github.com/ohcpaull/epytaxy',
+        'project_urls': {"Bug Tracker": "https://github.com/ohcpaull/epytaxy/issues",
                          "Documentation": None,
-                         "Source Code": "https://github.com/ohcpaull/valanoorlabs"},
+                         "Source Code": "https://github.com/ohcpaull/epytaxy"},
         'platforms': ["Windows", "Linux", "Solaris", "Mac OS-X", "Unix"],
         'classifiers': [
         'Development Status :: 4 - Beta',

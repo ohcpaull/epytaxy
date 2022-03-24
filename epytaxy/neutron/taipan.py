@@ -26,7 +26,7 @@ import pandas as pd
 import numpy as np
 import h5py
 import warnings
-from vlabs.spm.utils import(
+from epytaxy.spm.utils import(
     unit_vector,
     angle_between,
     Gauss2d,
