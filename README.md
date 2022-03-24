@@ -52,7 +52,12 @@ where `this-is-you` is your GitHub username. Here you're copying the contents of
 
 ## Install cloned repository with `pip`
 
-Open Anaconda Prompt, and navigate to the directory where the cloned valanoorlabs folder is held (e.g. `cd C:\Users\user_name\Documents\code` if the epytaxy package is in the code folder). Then do the following:
+First, check that `pip` is installed in your conda environment by typing `conda install pip`. Then, navigate to the directory where the cloned epytaxy folder is held (e.g. `cd C:\Users\user_name\Documents\code` if the epytaxy package is in the code folder). Then do the following:
+```
+pip install -r epytaxy/requirements.txt
+```
+This will go through the requirements text file and install the relevant versions of each package that `epytaxy` depends on. After all these have finished installing, we can now install the `epytaxy` package:
 ```
 pip install -e epytaxy
 ```
+where the `-e` flag tells pip that the package should be installed locally from the files you have downloaded from the github repository. 
