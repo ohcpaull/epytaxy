@@ -429,36 +429,51 @@ class ReciprocalSpaceMap:
         Ti = xu.materials.elements.Ti
         Ta = xu.materials.elements.Ta
         Y =  xu.materials.elements.Y
+        Dy = xu.materials.elements.Dy
+        Sc = xu.materials.elements.Sc
+
         energy = 1240/0.154
 
         if self.substrateMat == "LAO":
-            substrate = xu.materials.Crystal("LaAlO3", xu.materials.SGLattice(221, 3.784, \
-                            atoms=[La, Al, O], pos=['1a', '1b', '3c']))
-            hxrd = xu.HXRD(substrate.Q(int(self.iHKL[0]), int(self.iHKL[1]), int(self.iHKL[2])), \
-                           substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])), en=energy, geometry = geometry)
+            substrate = xu.materials.Crystal(
+                "LaAlO3", 
+                xu.materials.SGLattice(221, 3.784, atoms=[La, Al, O], pos=['1a', '1b', '3c'])
+            )
         elif self.substrateMat == "STO":
             substrate = xu.materials.SrTiO3
-
-            hxrd = xu.HXRD(substrate.Q(int(self.iHKL[0]), int(self.iHKL[1]), int(self.iHKL[2])), \
-                           substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])), en=energy, geometry = geometry)
         elif self.substrateMat == "LSAT": # need to make an alloy of LaAlO3 and Sr2AlTaO6
-            mat1 = xu.materials.Crystal("LaAlO3", xu.materials.SGLattice(221, 3.79, \
-                           atoms=[La, Al, O], pos=['1a', '1b', '3c']))
-            mat2 = xu.materials.Crystal("Sr2AlTaO6", xu.materials.SGLattice(221, 3.898,\
-                           atoms=[Sr, Al, Ta, O], pos=['8c', '4a', '4b', '24c']))
+            mat1 = xu.materials.Crystal(
+                "LaAlO3", xu.materials.SGLattice(221, 3.79, atoms=[La, Al, O], pos=['1a', '1b', '3c'])
+            )
+            mat2 = xu.materials.Crystal(
+                "Sr2AlTaO6", 
+                xu.materials.SGLattice(221, 3.898, atoms=[Sr, Al, Ta, O], pos=['8c', '4a', '4b', '24c'])
+            )
             substrate = xu.materials.CubicAlloy(mat1, mat2, 0.71)
-            hxrd = xu.HXRD(substrate.Q(int(self.iHKL[0]), int(self.iHKL[1]), int(self.iHKL[2])), \
-                           substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])), en=energy, geometry = geometry)
+
         elif self.substrateMat == "YAO":
             print(
                 "Warning: YAlO3 is an orthorhombic substrate. Remember to take this into account\
                 when inputting measured RSM reflections."
             )
-            substrate = xu.materials.Crystal("YAlO3", xu.materials.SGLattice(62, 5.18, 5.33, 7.37,\
-                            atoms=[Y, Al, O], pos=['4c', '4b', '4c', '8d']))
-            hxrd = xu.HXRD(substrate.Q(int(self.iHKL[0]), int(self.iHKL[1]), int(self.iHKL[2])), \
-                           substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])), en=energy, geometry = geometry, **kwargs)
-           
+            substrate = xu.materials.Crystal(
+                "YAlO3", 
+                xu.materials.SGLattice(62, 5.18, 5.33, 7.37, atoms=[Y, Al, O], pos=['4c', '4b', '4c', '8d'])
+            )
+
+        elif self.substrateMat == "DSO":
+            substrate = xu.materials.Crystal(
+                "DyScO3", 
+                xu.materials.SGLattice(62, 5.44, 5.71, 7.89, atoms=[Dy, Sc, O], pos=['4c', '4b', '4c', '8d'])
+            )
+
+        hxrd = xu.HXRD(
+            substrate.Q(int(self.iHKL[0]), int(self.iHKL[1]), int(self.iHKL[2])),
+            substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])), 
+            en=energy, 
+            geometry = geometry, 
+            **kwargs
+        )
         return [substrate, hxrd]
     
     def align_sub_peak(self, frange=None, delta=None, verbose=False, **kwargs):

@@ -82,8 +82,9 @@ def reduce_xray(f, bkg=None, scale=None, sample_length=None, clip=0):
         footprint_correction = general.beamfrac(
             np.array([XRR_BEAMWIDTH_SD]) * 2.35,
             np.array([sample_length]),
-            spec["omega"][clip:],
+            spec["twotheta"][clip:]/2,
         )
+        #print(footprint_correction)
         reflectivity /= footprint_correction
         reflectivity_s /= footprint_correction
 
@@ -237,7 +238,7 @@ def parse_xrdml_file(f):
     """
     tree = et.parse(f)
     root = tree.getroot()
-    ns = {"xrdml": "http://www.xrdml.com/XRDMeasurement/1.0"}
+    ns = {"xrdml": "http://www.xrdml.com/XRDMeasurement/1.5"}
 
     query = {
         "intensities": ".//xrdml:intensities",
