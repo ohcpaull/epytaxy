@@ -210,6 +210,121 @@ class LineProfile:
         return axis
 
 
+def line_profile(data, scan_size, width=50.0, **kwargs):
+    """
+    Plots a data channel in an interactive jupyter notebook figure.
+
+    Interactive clicking on the data channel plot can create a line profile, 
+    which is then plotted in the adjacent window. Clicking on channel 2D plot 
+    creates a a startpoint, and a second click creates the end-point for 
+    the line profile.
+
+    Parameters
+    ----------
+    channel     :   str or np.ndarray
+        Channel to plot and obtain line profile
+    width       :   float
+        Width in nanometres to integrate the linescan over. If you think this
+        unit of width is silly then come fight me 
+
+    """
+
+    if "cmap" not in kwargs.keys():
+        kwargs.update(cmap = "afmhot")
+
+    if "color" in kwargs.keys():
+        color = kwargs.pop("color")
+    else:
+        color = "black"
+
+    fig, ax = plt.subplots(1,2)
+
+    im, cbar = plot_map(ax[0], data,  x_vec = scan_size, y_vec = scan_size, **kwargs)
+    ax[0].set(xlabel="X (µm)", ylabel="Y (µm)") 
+    pos = []
+    line = []
+    px, py = [], []
+    xyA, xyB = (), ()
+    
+    axis_length = len(data)
+    # Convert width between nanometres and pixels
+    width = int(np.round(width / 1000 / scan_size * axis_length))
+
+
+    def onclick(event):
+        if len(pos) == 0:
+            # plot first scatter
+            scatter = ax[0].scatter(event.xdata, event.ydata, s=5, color=color)
+            pos.append(scatter)
+            px.append(event.xdata)
+            py.append(event.ydata)
+
+        elif len(pos) == 1:
+            # plot second scatter and line
+            scatter = ax[0].scatter(event.xdata, event.ydata, s=5, color=color)
+            pos.append(scatter)
+            px.append(event.xdata)
+            py.append(event.ydata)
+            x_values = [px[0], px[1]]
+            y_values = [py[0], py[1]]
+
+            # Plot line profile of data
+            lp = LineProfile(
+                (x_values[0], y_values[0]),
+                (x_values[1], y_values[1]),
+                width=width,
+                color=color
+            )
+
+
+            lp.cut_channel(data)
+            line.append(lp.cpatch_line)
+            line.append(lp.cpatch_i)
+            line.append(lp.cpatch_f)
+
+            
+
+
+            diff_x = (lp.px_f[0] - lp.px_i[0]) / axis_length * scan_size
+            diff_y = (lp.px_f[1] - lp.px_i[1]) / axis_length * scan_size
+            sample_distance = np.hypot(diff_x, diff_y)
+
+            lp.s_dist = np.linspace(0, sample_distance, len(lp.line_profile))
+
+            # Plot line profile in adjacent subplot
+            ax[1].plot(
+                lp.s_dist,
+                lp.line_profile,
+                label=f"line profile",
+            )
+            ax[1].set(xlabel="Distance (µm)", ylabel=f"nm", title="Line Profile")
+
+            # Plot line and width 
+            lp._plot_over_channel(ax[0])
+
+
+        else:
+        # clear variables 
+            for scatter in pos:
+                scatter.remove()
+
+            px.clear()
+            py.clear()
+            pos.clear()
+            ax[1].clear()
+            line[0].remove()
+            line[1].remove()
+            line[2].remove()
+            line.clear()
+
+
+
+        fig.canvas.draw()
+
+    cid = fig.canvas.mpl_connect('button_press_event', onclick)
+    plt.show()
+
+
 def unit_vector(vector):
     """ Returns the unit vector of the vector.  """
     return vector / np.linalg.norm(vector)
