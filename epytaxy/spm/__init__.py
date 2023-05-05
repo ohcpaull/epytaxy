@@ -1,6 +1,7 @@
 from epytaxy.spm.scanningprobe import (
     AsylumDART,
     AsylumSF,
+    Innova,
     convert_to_h5,
     load_files,
     file_preview,
@@ -22,6 +23,7 @@ from epytaxy.spm.utils import (
     log,
     sine,
     cosine,
+    LineProfile,
 )
 
 from epytaxy.spm.igor_ibw import (
