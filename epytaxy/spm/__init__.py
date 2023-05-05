@@ -23,6 +23,7 @@ from epytaxy.spm.utils import (
     log,
     sine,
     cosine,
+    LineProfile,
 )
 
 from epytaxy.spm.igor_ibw import (
