@@ -430,7 +430,11 @@ class ReciprocalSpaceMap:
         Ta = xu.materials.elements.Ta
         Y =  xu.materials.elements.Y
         Dy = xu.materials.elements.Dy
+        Tb = xu.materials.elements.Tb
+        Gd = xu.materials.elements.Gd
+        Sm = xu.materials.elements.Sm
         Sc = xu.materials.elements.Sc
+        Nd = xu.materials.elements.Nd
 
         energy = 1240/0.154
 
@@ -464,9 +468,28 @@ class ReciprocalSpaceMap:
         elif self.substrateMat == "DSO":
             substrate = xu.materials.Crystal(
                 "DyScO3", 
-                xu.materials.SGLattice(62, 5.44, 5.71, 7.89, atoms=[Dy, Sc, O], pos=['4c', '4b', '4c', '8d'])
+                xu.materials.SGLattice(62, 5.44, 5.717, 7.903, atoms=[Dy, Sc, O], pos=['4c', '4b', '4c', '8d'])
             )
-
+        elif self.substrateMat == "TSO":
+            substrate = xu.materials.Crystal(
+                "TbScO3", 
+                xu.materials.SGLattice(62, 5.466, 5.731, 7.917, atoms=[Tb, Sc, O], pos=['4c', '4b', '4c', '8d'])
+            )
+        elif self.substrateMat == "GSO":
+            substrate = xu.materials.Crystal(
+                "GdScO3", 
+                xu.materials.SGLattice(62, 5.48, 5.746, 7.932, atoms=[Gd, Sc, O], pos=['4c', '4b', '4c', '8d'])
+            )
+        elif self.substrateMat == "SSO":
+            substrate = xu.materials.Crystal(
+                "SmScO3", 
+                xu.materials.SGLattice(62, 5.527, 5.758, 7.965, atoms=[Sm, Sc, O], pos=['4c', '4b', '4c', '8d'])
+            )
+        elif self.substrateMat == "NSO":
+            substrate = xu.materials.Crystal(
+                "NdScO3", 
+                xu.materials.SGLattice(62, 5.575, 5.776, 8.003, atoms=[Nd, Sc, O], pos=['4c', '4b', '4c', '8d'])
+            )
         hxrd = xu.HXRD(
             substrate.Q(int(self.iHKL[0]), int(self.iHKL[1]), int(self.iHKL[2])),
             substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])), 
