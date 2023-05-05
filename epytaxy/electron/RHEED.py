@@ -6,6 +6,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.widgets  import RectangleSelector
 from matplotlib.backend_bases import MouseButton
 from lmfit.models import LorentzianModel, GaussianModel
+import tifffile
 
 class RHEEDPattern:
     """
