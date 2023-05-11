@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import datetime
+import pathlib
 from lmfit.models import LorentzianModel, GaussianModel
 from matplotlib.widgets import SpanSelector
 from scipy.fft import fft, fftfreq
@@ -190,7 +191,9 @@ class UVSpec:
             x = self.data["Binding Energy"]
         else:
             x = self.data["Kinetic Energy"]
-        ax.plot(x, self.data["Counts"], ".", color="k", **kwargs)
+
+        
+        ax.plot(x, self.data["Counts"], ".", **kwargs)
         
         if hasattr(self, "fit_components"):
             colours = sns.color_palette("colorblind", len(self.fit_components))
@@ -217,17 +220,28 @@ class THz:
         function. The data is then stored in the data attribute of the 
         class instance.
         """
-        for file in os.listdir(data_dir):
-            if str(fID) in file:
-                self.data = pd.read_csv(
-                    os.path.join(data_dir, file), 
-                    delimiter="\t",
-                    names = ["time", "Efield", "dE/dt"],
-                    dtype = float,
-                    decimal=","
-                )
-                print(file)
-                break
+        if isinstance(fID, str):
+            self.data = pd.read_csv(
+                os.path.join(data_dir, fID), 
+                delimiter="\t",
+                names = ["time", "Efield", "dE/dt"],
+                dtype = float,
+                decimal=","
+            )
+        elif isinstance(fID, int):
+            for file in os.listdir(data_dir):
+                if str(fID) in file:
+                    self.data = pd.read_csv(
+                        os.path.join(data_dir, file), 
+                        delimiter="\t",
+                        names = ["time", "Efield", "dE/dt"],
+                        dtype = float,
+                        decimal=","
+                    )
+                    print(file)
+                    break
+        else:
+            raise ImportError("fID not identified!")
              
     def interactive_fft(self):
         """
@@ -287,3 +301,84 @@ class THz:
 
 
         self.fig.show()
+
+    def fixed_fft(self, bounds=None):
+
+        if bounds == None:
+            bounds = (self.data["time"].values[0], self.data["time"].values[-1])
+                      
+        self.idx1, self.idx2 = np.searchsorted(self.data["time"], (bounds[0], bounds[1]))
+        N = self.idx2 - self.idx1
+        dt = self.data["time"][1] - self.data["time"][0]
+        self.fft = {
+            "frequency" : fftfreq(N, dt/1e12)[1:N//2]/1e9,
+            "intensity" : fft(self.data["Efield"].values)[1:N//2]
+        }
+        return (self.fft["frequency"], self.fft["intensity"])
+    
+class PolarTHz:
+    """
+    Class that loads the angle-dependent THz emission of of a sample in positive and 
+    negative magnetic field
+    """
+    def __init__(self, data_dir_posB, data_dir_negB, angle_step, start_angle=0, sampleID=None, ftype=".dat"):
+        """
+        Loading data here. Requires data for each magnetic field to be in separate folders, 
+        and that the angle step for each measurement set is the same.
+
+        Parameters
+        ----------
+        data_dir_posB : str, os.path
+            data directory for the angle-dependent measurements in +B magnetic field
+        data_dir_negB : str, os.path
+            data directory for the angle-dependent measurements in -B magnetic field
+        angle_step : int
+            angle step in degrees between each measurement of the angle dependence
+        start_angle : int, optional
+            Optional input of start angle in case you want to align it with a specific axis
+        sampleID : str, optional
+            The ID of the sample used in the measurement set
+        ftype : str, optional
+            filetype used to express THz emission data. Default is .dat
+        """
+        self.__sampleID
+        theta = []
+        # load data for +B field
+        posB_measure = {}
+        for idx, filepath in enumerate(pathlib.Path(data_dir_posB).glob(f"*{ftype}")):
+            theta.append(int(start_angle + idx * angle_step + 0.5))
+            file = os.path.basename(filepath)
+            posB_measure[f"{theta[idx]} deg"] = THz(file, data_dir=data_dir_posB)
+        
+        self.theta = np.array(theta)
+        
+        # load data for -B field
+        negB_measure = {}
+        for idx, filepath in enumerate(pathlib.Path(data_dir_negB).glob(f"*{ftype}")):
+            file = os.path.basename(filepath)
+            negB_measure[f"{theta[idx]} deg"] = THz(file, data_dir=data_dir_negB)
+
+        self.measurements = pd.DataFrame({"+B" : posB_measure, "-B" : negB_measure})
+
+    @property
+    def sampleID(self):
+        return self.__sampleID
+    
+    @sampleID.setter
+    def sampleID(self, value):
+        self.__sampleID = value
+
+    def __sizeof__(self):
+        return f"2x {len(self.measurements["+B"])} measurements."
+    
+    def magnetic(self, angle):
+        if angle not in self.theta:
+            raise ValueError("Provided angle not in measured angles!")
+        else:
+            return (self.measurements["+B"][f"{angle} deg"].data["Efield"] - self.measurements["-B"][f"{angle} deg"].data["Efield"])/2
+
+    def nonmagnetic(self, angle):
+        if angle not in self.theta:
+            raise ValueError("Provided angle not in measured angles!")
+        else:
+            return (self.measurements["+B"][f"{angle} deg"].data["Efield"] + self.measurements["-B"][f"{angle} deg"].data["Efield"])/2        

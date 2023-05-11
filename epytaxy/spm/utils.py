@@ -3,7 +3,6 @@ import scipy
 from matplotlib.patches import ConnectionPatch
 from skimage.measure import profile_line
 import lmfit
-from epytaxy.spm import plot_map
 import matplotlib.pyplot as plt
 
 def _line_profile_coordinates(src, dst, linewidth=1):
