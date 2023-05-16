@@ -66,8 +66,15 @@ class XPSpec:
         }
 
         self.data = pd.DataFrame(data=d)
+        self.fitting = {}
     
-    def fit(self, model, params, method="least_squares"):
+    def binding_energy(self, kinetic_energy):
+        return - self.metadata["excitation_energy"] + kinetic_energy
+    
+    def kinetic_energy(self, binding_energy):
+        return binding_energy + self.metadata["excitation_energy"]
+
+    def fit(self, model, params, fit_region=None, method="least_squares", fit_ID=None, xunits="KE"):
         """
         Fits experimental data to a model and parameters inputted by the user. 
 
@@ -82,27 +89,60 @@ class XPSpec:
         
 
         """
-        self.model = model
-        self.params = params
-        self.res = self.model.fit(self.data["Counts"], self.params, x=self.data["Kinetic Energy"], method=method)
-        self.fit_components = self.res.eval_components(x=self.data["Kinetic Energy"])
+        if fit_ID == None:
+            fit_ID = f"fit_{len(self.fitting)}"
+        self.fitting[fit_ID] = {"model" : model, "params" : params, "res" : None}
+
+        if xunits == "KE":
+            units = "Kinetic Energy"
+        elif xunits == "BE":
+            units = "Binding Energy"
+        else: 
+            raise ValueError("Units not recognised!")
+
+        if fit_region:
+            region = self.data[self.data[units].between(fit_region[0], fit_region[1])]
+        else:
+            region = self.data
+
+        self.fitting[fit_ID]["res"] = self.fitting[fit_ID]["model"].fit(region["Counts"], self.fitting[fit_ID]["params"], x=region[units], method=method)
+        self.fitting[fit_ID]["fit_components"] = self.fitting[fit_ID]["res"].eval_components(x=self.data[units])
     
     def plot(self, fig=None, ax=None, xunits="KE", **kwargs):
         if fig is None and ax is None:
             fig, ax = plt.subplots()
         if xunits == "BE":
-            x = self.data["Binding Energy"]
-        else:
-            x = self.data["Kinetic Energy"]
-        ax.plot(x, self.data["Counts"], ".", color="k", **kwargs)
+            units = "Binding Energy"
+        elif xunits == "KE":
+            units = "Kinetic Energy"
+        else: 
+            raise ValueError("Units not recognised!")
+
+        x = self.data[units]
+
+        ax.plot(self.data[units], self.data["Counts"], ".", **kwargs)
         
-        
-        if hasattr(self, "fit_components"):
-            colours = sns.color_palette("colorblind", len(self.fit_components))
-            ax.plot(x, self.res.best_fit, '-', color="red", label="best fit")
-            for idx, key in enumerate(self.fit_components.keys()):
-                ax.plot(x, self.fit_components[key], "--", color=colours[idx], markersize=1, label=f"{key}")
+        if len(self.fitting):
+            # Plot each fit that has been performed
+            for id in self.fitting.keys():
+                colours = sns.color_palette("colorblind", len(self.fitting[id]["fit_components"]))
+                # Check if fit is an array (only relevant for constant models)
+                if not hasattr(self.fitting[id]["res"].eval(self.fitting[id]["res"].params, x=self.data[units]), "__len__"):
+                    y = np.full(len(x), self.fitting[id]["res"].eval(self.fitting[id]["res"].params, x=self.data[units]))
+                else:
+                    y = self.fitting[id]["res"].eval(self.fitting[id]["res"].params, x=self.data[units])
+                # plot best fit
+                ax.plot(x, y, '-', color="red", label=f"{id} best fit")
                 
+                # plot fit components
+                for idx, key in enumerate(self.fitting[id]["fit_components"].keys()):
+                    if not hasattr(self.fitting[id]["fit_components"][key], "__len__"):
+                        y = np.full(len(x), self.fitting[id]["fit_components"][key])
+                    else:
+                        y = self.fitting[id]["fit_components"][key]
+                    ax.plot(x, y, "--", color=colours[idx], markersize=1, label=f"{id} {key}")
+        
+        ax.set(xlabel=units, ylabel="Intensity (a.u.)")
         plt.legend()
         return fig, ax
 
@@ -164,7 +204,13 @@ class UVSpec:
 
         self.data = pd.DataFrame(data=d)
     
-    def fit(self, model, params, method="least_squares", **kwargs):
+    def binding_energy(self, kinetic_energy):
+        return - self.metadata["excitation_energy"] + kinetic_energy
+    
+    def kinetic_energy(self, binding_energy):
+        return binding_energy + self.metadata["excitation_energy"]
+
+    def fit(self, model, params, fit_region=None, method="least_squares", fit_ID=None, xunits="KE"):
         """
         Fits experimental data to a model and parameters inputted by the user. 
 
@@ -179,28 +225,56 @@ class UVSpec:
         
 
         """
-        self.model = model
-        self.params = params
-        self.res = self.model.fit(self.data["Counts"], self.params, x=self.data["Kinetic Energy"], method=method, **kwargs)
-        self.fit_components = self.res.eval_components(x=self.data["Kinetic Energy"])
+        if fit_ID == None:
+            fit_ID = f"fit_{len(self.fitting)}"
+        
+        self.fitting[fit_ID] = {"model" : model, "params" : params, "res" : None}
+
+        if xunits == "KE":
+            units = "Kinetic Energy"
+        elif xunits == "BE":
+            units = "Binding Energy"
+        else: 
+            raise ValueError("Units not recognised!")
+
+        if fit_region:
+            region = self.data[self.data[units].between(fit_region[0], fit_region[1])]
+        else:
+            region = self.data
+
+        self.fitting[fit_ID]["res"] = self.fitting[fit_ID]["model"].fit(region["Counts"], self.fitting[fit_ID]["params"], x=region[units], method=method)
+        self.fitting[fit_ID]["fit_components"] = self.fitting[fit_ID]["res"].eval_components(x=self.data[units])
     
     def plot(self, fig=None, ax=None, xunits="KE", **kwargs):
         if fig is None and ax is None:
             fig, ax = plt.subplots()
         if xunits == "BE":
-            x = self.data["Binding Energy"]
-        else:
-            x = self.data["Kinetic Energy"]
+            units = "Binding Energy"
+        elif xunits == "KE":
+            units = "Kinetic Energy"
+        else: 
+            raise ValueError("Units not recognised!")
 
+        x = self.data[units]
+
+        ax.plot(self.data[units], self.data["Counts"], ".", **kwargs)
         
-        ax.plot(x, self.data["Counts"], ".", **kwargs)
-        
-        if hasattr(self, "fit_components"):
-            colours = sns.color_palette("colorblind", len(self.fit_components))
-            ax.plot(x, self.res.best_fit, '-', color="red", label="best fit")
-            for idx, key in enumerate(self.fit_components.keys()):
-                ax.plot(x, self.fit_components[key], "--", color=colours[idx], markersize=1, label=f"{key}")
-                
+        if len(self.fitting) > 0:
+            for id in self.fitting.keys():
+                colours = sns.color_palette("colorblind", len(self.fitting[id]["fit_components"]))
+                if not hasattr(self.fitting[id]["res"].eval(self.fitting[id]["res"].params, x=self.data[units]), "__len__"):
+                    y = np.full(len(x), self.fitting[id]["res"].eval(self.fitting[id]["res"].params, x=self.data[units]))
+                else:
+                    y = self.fitting[id]["res"].eval(self.fitting[id]["res"].params, x=self.data[units])
+                ax.plot(x, y, '-', color="red", label=f"{id} best fit")
+
+                for idx, key in enumerate(self.fitting[id]["fit_components"].keys()):
+                    if not hasattr(self.fitting[id]["fit_components"][key], "__len__"):
+                        y = np.full(len(x), self.fitting[id]["fit_components"][key])
+                    else:
+                        y = self.fitting[id]["fit_components"][key]
+                    ax.plot(x, y, "--", color=colours[idx], markersize=1, label=f"{id} {key}")
+        ax.set(xlabel=units, ylabel="Intensity (a.u.)")
         plt.legend()
         return fig, ax
     
@@ -369,7 +443,7 @@ class PolarTHz:
         self.__sampleID = value
 
     def __sizeof__(self):
-        return f"2x {len(self.measurements["+B"])} measurements."
+        return f"{np.size(self.measurements)} measurements."
     
     def magnetic(self, angle):
         if angle not in self.theta:
