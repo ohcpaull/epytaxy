@@ -23,7 +23,9 @@ import xml.etree.ElementTree as et
 from refnx.dataset import ReflectDataset
 import re
 from itertools import islice
-import zipfile
+import zipfile, io
+import pandas as pd
+
 
 # mm
 XRR_BEAMWIDTH_SD = 0.019449
@@ -753,6 +755,93 @@ class BRMLFile:
         return scanp, fixp
 
 
+class RigakuAxis:
+    def __init__(self, parameters):
+        
+        self.name = parameters["Name"]
+        self.unit = parameters["Unit"]
+        self.offset = parameters["Offset"]
+        self.position = parameters["Position"]
+        self.state = parameters["State"]
+        self.resolution = parameters["Resolution"]
+        
+    def __str__(self):
+        return self.name
+
+    
+class RigakuHardware:
+    def __init__(self, parameters):
+        self.goniometer = parameters["gonio"]["SelectedUnit"]
+        self.attachment_head = parameters["head"]["SelectedUnit"]
+        self.attachment_stage = parameters["stage"]["SelectedUnit"]
+        self.detector = parameters["detector"]["SelectedUnit"]
+        self.detector_mono = parameters["detector_mono"]["SelectedUnit"]
+        self.receiving_atten = parameters["rec_atten"]["SelectedUnit"]
+
+
+class RigakuScanRASX:
+    def __init__(self, filename, data_directory="."):
+        zipf = zipfile.ZipFile(os.path.join(data_directory, filename))
+
+        scan = zipf.read("Data0/Profile0.txt")
+        hardware = zipf.read("Data0/MesurementConditions0.xml")
+        
+        ns = {"rasx" : "http://www.w3.org/2001/XMLSchema"}
+        tree = et.parse(io.BytesIO(hardware))
+        root = tree.getroot()
+        
+        scan_query = {
+            "axis" : ".//*AxisName",
+            "mode" : ".//*Mode",
+            "start_angle" : ".//*Start",
+            "end_angle" : ".//*Stop",
+            "step" : ".//*Step",
+            "resolution" : ".//Resolution",
+            "speed" : ".//Speed",
+            "speed_unit" : ".//SpeedUnit",
+            "axis_unit" : ".//PositionUnit",
+            "intensity_unit" : ".//IntensityUnit",
+            "start_time" : ".//StartTime",
+            "end_time" : ".//EndTime",
+            "unequally_spaced" : ".//UnequalySpaced",
+        }
+        self.scan_information = {key : root.find(value).text for key, value in scan_query.items()}
+        
+        hardware_query = {
+            "gonio" : ".//*Category[@Name='Goniometer']",
+            "head" :  ".//*Category[@Name='AttachmentHead']",
+            "stage" : ".//*Category[@Name='AttachmentStage']",
+            "detector" : ".//*Category[@Name='Detector']",
+            "detector_mono" : ".//*Category[@Name='DetectorMonochromator']",
+            "rec_atten" : ".//*Category[@Name='ReceivingAttenuator']",
+        }
+        self.hardware = RigakuHardware({key : root.find(value).attrib for key, value in hardware_query.items()})
+        
+        axis_query = {
+            "omega" : ".//*Axis[@Name='Omega']",
+            "twotheta" :  ".//*Axis[@Name='TwoTheta']",
+            "twothetatheta" : ".//*Axis[@Name='TwoThetaTheta']",
+            "twothetaomega" : ".//*Axis[@Name='TwoThetaOmega']",
+            "twothetachi" : ".//*Axis[@Name='TwoThetaChi']",
+            "chi" : ".//*Axis[@Name='Chi']",
+            "phi" : ".//*Axis[@Name='Phi']",
+            "z" : ".//*Axis[@Name='Z']",
+            "alpha" : ".//*Axis[@Name='Alpha']",
+            "beta" : ".//*Axis[@Name='Beta']",
+            "rx" : ".//*Axis[@Name='Rx']",
+            "ry" : ".//*Axis[@Name='Ry']"
+        }
+        axesdict = {key : root.find(value).attrib for key, value in axis_query.items()}
+        self.axes = {}
+        for key in axesdict.keys():
+            self.axes[key] = RigakuAxis(axesdict[key])
+            
+        data = pd.read_csv(io.BytesIO(scan), delimiter="\t", names=[self.scan_information["axis"], "intensity", "att"])
+        self.scan = {
+            self.scan_information["axis"] : data[self.scan_information["axis"]],
+            "intensity" : data["intensity"],
+            "attenuator" : data["att"]                                                
+        }
 
 
 def ras_file(file):

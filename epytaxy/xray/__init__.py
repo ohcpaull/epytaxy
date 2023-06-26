@@ -1,6 +1,7 @@
 from epytaxy.xray.xrd import (
     ReciprocalSpaceMap,
     BRMLFile,
+    RigakuScanRASX,
     ras_file,
     xrdml_file,
 )
