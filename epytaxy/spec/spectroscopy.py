@@ -316,7 +316,7 @@ class THz:
                     break
         else:
             raise ImportError("fID not identified!")
-             
+
     def interactive_fft(self):
         """
         This method generates an interactive plot of the Fourier transform of the 
@@ -440,8 +440,17 @@ class PolarTHz:
             raise ValueError("Provided angle not in measured angles!")
         else:
             return (self.measurements["+B"][f"{angle} deg"].data["Efield"] - self.measurements["-B"][f"{angle} deg"].data["Efield"])/2
-        
+
+    def nonmagnetic(self, angle):
+        if angle not in self.theta:
+            raise ValueError("Provided angle not in measured angles!")
+        else:
+            return (self.measurements["+B"][f"{angle} deg"].data["Efield"] + self.measurements["-B"][f"{angle} deg"].data["Efield"])/2     
+
     def polar(self):
+        """
+        Calculate the peak-to-trough value of an emitted THz pulse as a function of angle 
+        """
         self.magnetic_pp = np.zeros(len(self.theta))
         self.nonmagnetic_pp = np.zeros(len(self.theta))
 
@@ -454,8 +463,4 @@ class PolarTHz:
         return self.magnetic_pp, self.nonmagnetic_pp
 
 
-    def nonmagnetic(self, angle):
-        if angle not in self.theta:
-            raise ValueError("Provided angle not in measured angles!")
-        else:
-            return (self.measurements["+B"][f"{angle} deg"].data["Efield"] + self.measurements["-B"][f"{angle} deg"].data["Efield"])/2        
+   

@@ -766,9 +766,14 @@ class RigakuAxis:
         self.resolution = parameters["Resolution"]
         
     def __str__(self):
-        return self.name
-
+        return ( 
+            "## Axis parameters:\n"
+            f"Name: {self.name}\n"
+            f"Position : {self.position}\n"
+            f"Mode : {self.state}\n"
+        )
     
+
 class RigakuHardware:
     def __init__(self, parameters):
         self.goniometer = parameters["gonio"]["SelectedUnit"]
@@ -780,6 +785,18 @@ class RigakuHardware:
 
 
 class RigakuScanRASX:
+    """
+    Reads the new format of Rigaku XRD files - "RASX". These files are zipped
+    and contain a .xml file with hardware-related information, as well as a 
+    .txt file with the scan data.
+
+    Parameters
+    ----------
+    filename : str
+        filename of the .rasx file
+    data_directory : str or os.path, optional
+        directory where the data is found
+    """
     def __init__(self, filename, data_directory="."):
         zipf = zipfile.ZipFile(os.path.join(data_directory, filename))
 
