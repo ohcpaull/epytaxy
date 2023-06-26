@@ -77,7 +77,7 @@ class LineProfile:
         
     """
 
-    def __init__(self, px_i, px_f, width, color="black"):
+    def __init__(self, px_i, px_f, width, color="black", linewidth=1):
         self.px_i = px_i
         self.px_f = px_f        
         self.px_width = width
@@ -106,7 +106,8 @@ class LineProfile:
             xyB=self.xyB_i,
             coordsA="data",
             coordsB="data",
-            color=color
+            color=color,
+            lw=linewidth
         )
         
         self.cpatch_line = ConnectionPatch(
@@ -114,7 +115,8 @@ class LineProfile:
             xyB=self.px_f,
             coordsA="data",
             coordsB="data",
-            color=color
+            color=color,
+            lw=linewidth
         )
 
         self.xyA_f = (
@@ -131,7 +133,8 @@ class LineProfile:
             xyB=self.xyB_f,
             coordsA="data",
             coordsB="data",
-            color=color
+            color=color,
+            lw=linewidth
         )
 
     def __len__(self):
@@ -210,8 +213,7 @@ class LineProfile:
         axis.add_artist(cp_f)
         return axis
 
-
-def line_profile(data, scan_size, width=50.0, **kwargs):
+def line_profile(data, scan_size, width=50.0, linewidth=1, **kwargs):
     """
     Plots a data channel in an interactive jupyter notebook figure.
 
@@ -238,9 +240,9 @@ def line_profile(data, scan_size, width=50.0, **kwargs):
     else:
         color = "black"
 
-    fig, ax = plt.subplots(1,2)
+    fig, ax = plt.subplots(2,1)
 
-    im, cbar = plot_map(ax[0], data,  x_vec = scan_size, y_vec = scan_size, **kwargs)
+    im, cbar = plot_map(ax[0], data,  x_vec = scan_size, y_vec = scan_size, cbar_label="nm", **kwargs)
     ax[0].set(xlabel="X (µm)", ylabel="Y (µm)") 
     pos = []
     line = []
@@ -274,7 +276,8 @@ def line_profile(data, scan_size, width=50.0, **kwargs):
                 (x_values[0], y_values[0]),
                 (x_values[1], y_values[1]),
                 width=width,
-                color=color
+                color=color,
+                linewidth=linewidth
             )
 
 
@@ -297,11 +300,14 @@ def line_profile(data, scan_size, width=50.0, **kwargs):
                 lp.s_dist,
                 lp.line_profile,
                 label=f"line profile",
+                color="k"
             )
-            ax[1].set(xlabel="Distance (µm)", ylabel=f"nm", title="Line Profile")
+            ax[1].set(xlabel="Distance (µm)", ylabel=f"Height (nm)", title="Line Profile")
 
             # Plot line and width 
             lp._plot_over_channel(ax[0])
+            
+            plt.savefig("LNO2_2A_LP.png", dpi=300)
 
 
         else:
@@ -324,7 +330,6 @@ def line_profile(data, scan_size, width=50.0, **kwargs):
 
     cid = fig.canvas.mpl_connect('button_press_event', onclick)
     plt.show()
-
 
 def unit_vector(vector):
     """ Returns the unit vector of the vector.  """

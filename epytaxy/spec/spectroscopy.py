@@ -285,7 +285,7 @@ class THz:
     Henri-Yves Jaffres. Allows to interactively plot the spectrum, select and region
     of the spectrum and subsequently view the FFT of the selected area. 
     """
-    def __init__(self, fID, data_dir="."):
+    def __init__(self, fID, data_dir=".", decimal="."):
         """
         This method initializes an instance of the THz class. The method takes 
         two arguments: fID and data_dir. fID is an identifier that is used to 
@@ -300,17 +300,17 @@ class THz:
                 delimiter="\t",
                 names = ["time", "Efield", "dE/dt"],
                 dtype = float,
-                decimal=","
+                decimal=decimal
             )
         elif isinstance(fID, int):
             for file in os.listdir(data_dir):
-                if str(fID) in file:
+                if str(fID) in file and file.endswith(".dat"):
                     self.data = pd.read_csv(
                         os.path.join(data_dir, file), 
                         delimiter="\t",
                         names = ["time", "Efield", "dE/dt"],
                         dtype = float,
-                        decimal=","
+                        decimal=decimal
                     )
                     print(file)
                     break
@@ -389,7 +389,8 @@ class THz:
             "intensity" : fft(self.data["Efield"].values)[1:N//2]
         }
         return (self.fft["frequency"], self.fft["intensity"])
-    
+
+
 class PolarTHz:
     """
     Class that loads the angle-dependent THz emission of of a sample in positive and 
@@ -415,7 +416,7 @@ class PolarTHz:
         ftype : str, optional
             filetype used to express THz emission data. Default is .dat
         """
-        self.__sampleID
+
         theta = []
         # load data for +B field
         posB_measure = {}
@@ -434,22 +435,24 @@ class PolarTHz:
 
         self.measurements = pd.DataFrame({"+B" : posB_measure, "-B" : negB_measure})
 
-    @property
-    def sampleID(self):
-        return self.__sampleID
-    
-    @sampleID.setter
-    def sampleID(self, value):
-        self.__sampleID = value
-
-    def __sizeof__(self):
-        return f"{np.size(self.measurements)} measurements."
-    
     def magnetic(self, angle):
         if angle not in self.theta:
             raise ValueError("Provided angle not in measured angles!")
         else:
             return (self.measurements["+B"][f"{angle} deg"].data["Efield"] - self.measurements["-B"][f"{angle} deg"].data["Efield"])/2
+        
+    def polar(self):
+        self.magnetic_pp = np.zeros(len(self.theta))
+        self.nonmagnetic_pp = np.zeros(len(self.theta))
+
+        for idx, a in enumerate(self.theta):
+            mag = self.magnetic(a)
+            self.magnetic_pp[idx] = max(mag) - min(mag)
+            nonmag = self.nonmagnetic(a)
+            self.nonmagnetic_pp[idx] = max(nonmag) - min(nonmag)
+        
+        return self.magnetic_pp, self.nonmagnetic_pp
+
 
     def nonmagnetic(self, angle):
         if angle not in self.theta:
