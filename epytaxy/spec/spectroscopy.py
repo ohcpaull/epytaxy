@@ -436,12 +436,28 @@ class PolarTHz:
         self.measurements = pd.DataFrame({"+B" : posB_measure, "-B" : negB_measure})
 
     def magnetic(self, angle):
+        """
+        Calculates the magnetic signal of THz emission at a specific angle.
+
+        Parameters
+        ----------
+        angle : int
+            Angle of rotation of the sample w.r.t. the incident pump pulse polarisation
+        """
         if angle not in self.theta:
             raise ValueError("Provided angle not in measured angles!")
         else:
             return (self.measurements["+B"][f"{angle} deg"].data["Efield"] - self.measurements["-B"][f"{angle} deg"].data["Efield"])/2
 
     def nonmagnetic(self, angle):
+        """
+        Calculates the magnetic signal of THz emission at a specific angle.
+
+        Parameters
+        ----------
+        angle : int
+            Angle of rotation of the sample w.r.t. the incident pump pulse polarisation
+        """
         if angle not in self.theta:
             raise ValueError("Provided angle not in measured angles!")
         else:

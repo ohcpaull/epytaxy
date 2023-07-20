@@ -25,6 +25,7 @@ import re
 from itertools import islice
 import zipfile, io
 import pandas as pd
+import datetime
 
 
 # mm
@@ -756,15 +757,21 @@ class BRMLFile:
 
 
 class RigakuAxis:
+    """
+    Axis information in Rigaku .rasx files
+    """
     def __init__(self, parameters):
         
         self.name = parameters["Name"]
         self.unit = parameters["Unit"]
-        self.offset = parameters["Offset"]
-        self.position = parameters["Position"]
+        self.offset = float(parameters["Offset"])
+        self.position = float(parameters["Position"])
         self.state = parameters["State"]
-        self.resolution = parameters["Resolution"]
-        
+        self.resolution = float(parameters["Resolution"])
+    
+    def __repr__(self):
+        return f"RigakuAxis(name : {self.name}, position : {self.position}, state : {self.state})"
+    
     def __str__(self):
         return ( 
             "## Axis parameters:\n"
@@ -775,6 +782,9 @@ class RigakuAxis:
     
 
 class RigakuHardware:
+    """
+    Hardware information in Rigaku .rasx files
+    """
     def __init__(self, parameters):
         self.goniometer = parameters["gonio"]["SelectedUnit"]
         self.attachment_head = parameters["head"]["SelectedUnit"]
@@ -783,12 +793,71 @@ class RigakuHardware:
         self.detector_mono = parameters["detector_mono"]["SelectedUnit"]
         self.receiving_atten = parameters["rec_atten"]["SelectedUnit"]
 
+    def __repr__(self):
+        return f"RigakuHardware( gonio : {self.goniometer}, head : {self.attachment_head}, detector : {self.detector}, atten : {self.receiving_atten})"
+
+class RigakuFileRASX:
+    """
+    Represents a Rigaku .rasx X-ray diffraction file. There can 
+    be multiple scans per file, and different scan axes in each
+    scan. 
+
+    Parameters
+    ----------
+    filename : str
+        File name of the data file
+    data_directory : str, os.path
+        Directory where the file is stored
+
+    Instance attributes
+    -------------------
+    file_path : os.path
+        Full path to data file
+    scan_metadata : list
+        List of dictionaries for each scan within the file. Each
+        dictionary contains data related to where different data
+        is held within the .rasx file
+    scans : list
+        List of RigakuScanRASX objects that hold the scan data and 
+        scan metadata information (such as axis positions and 
+        hardware information)
+    """
+    def __init__(self, filename, data_directory="."):
+        
+        zipf = zipfile.ZipFile(os.path.join(data_directory, filename))
+        root = et.parse(io.BytesIO(zipf.read("root.xml"))).getroot()
+        self.file_path = os.path.join(data_directory, filename)
+        self.scan_metadata = []
+        self.scans = []
+        i = 0
+
+        while True:
+            res = root.find(f"Data{i}")
+            if res is None:
+                break
+            f = res.findall("ContentHashList")
+            scan_name = f[0].attrib["Name"]
+            hardware_name = f[1].attrib["Name"]
+            self.scan_metadata.append(dict(
+                container = res.tag,
+                scan_name = scan_name,
+                config_name = hardware_name
+            ))
+
+            self.scans.append(RigakuScanRASX(self.file_path, self.scan_metadata[i]))
+            i += 1
+
+    def __str__(self):
+        return (f"Rigaku RASX File:\nScans:")
+
+
 
 class RigakuScanRASX:
     """
     Reads the new format of Rigaku XRD files - "RASX". These files are zipped
     and contain a .xml file with hardware-related information, as well as a 
-    .txt file with the scan data.
+    .txt file with the scan data. This class reads the hardware-related information
+    to 
 
     Parameters
     ----------
@@ -796,17 +865,30 @@ class RigakuScanRASX:
         filename of the .rasx file
     data_directory : str or os.path, optional
         directory where the data is found
-    """
-    def __init__(self, filename, data_directory="."):
-        zipf = zipfile.ZipFile(os.path.join(data_directory, filename))
 
-        scan = zipf.read("Data0/Profile0.txt")
-        hardware = zipf.read("Data0/MesurementConditions0.xml")
+    Instance Attributes
+    -------------------
+    
+    """
+    def __init__(self, filename, metadata):
+        zipf = zipfile.ZipFile(filename)
+
+        scan = zipf.read(f"{metadata['container']}/{metadata['scan_name']}")
+        hardware = zipf.read(f"{metadata['container']}/{metadata['config_name']}")
         
         ns = {"rasx" : "http://www.w3.org/2001/XMLSchema"}
         tree = et.parse(io.BytesIO(hardware))
         root = tree.getroot()
         
+        metadata_query = {
+            "sample_name" : "*.//SampleName",
+            "comment" : "*.//Comment",
+            "measurement_package_name" : "*.//PackageName",
+            "measurement_part_name" : "*.//PartName"
+        }
+
+        self.metadata = {key : root.find(value).text for key, value in metadata_query.items()}
+
         scan_query = {
             "axis" : ".//*AxisName",
             "mode" : ".//*Mode",
@@ -824,6 +906,19 @@ class RigakuScanRASX:
         }
         self.scan_information = {key : root.find(value).text for key, value in scan_query.items()}
         
+        self.scan_information["start_angle"] = float(self.scan_information["start_angle"])
+        self.scan_information["end_angle"] = float(self.scan_information["end_angle"])
+        self.scan_information["step"] = float(self.scan_information["step"])
+        self.scan_information["resolution"] = float(self.scan_information["resolution"])
+        self.scan_information["speed"] = float(self.scan_information["speed"])
+        self.scan_information["start_time"] = datetime.datetime.strptime(self.scan_information["start_time"], '%Y-%m-%dT%H:%M:%SZ')
+        self.scan_information["end_time"] = datetime.datetime.strptime(self.scan_information["end_time"], '%Y-%m-%dT%H:%M:%SZ')
+        if self.scan_information["unequally_spaced"] == "True":
+            self.scan_information["unequally_spaced"] = True
+        else:
+            self.scan_information["unequally_spaced"] = False
+
+
         hardware_query = {
             "gonio" : ".//*Category[@Name='Goniometer']",
             "head" :  ".//*Category[@Name='AttachmentHead']",
@@ -857,7 +952,7 @@ class RigakuScanRASX:
         self.scan = {
             self.scan_information["axis"] : data[self.scan_information["axis"]],
             "intensity" : data["intensity"],
-            "attenuator" : data["att"]                                                
+            "attenuator" : data["att"]
         }
 
 
