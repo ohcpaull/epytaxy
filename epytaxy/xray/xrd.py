@@ -127,6 +127,12 @@ class ReciprocalSpaceMap:
             self.tt.append(tt)
             self.data.append(data)
             self.p, [qx, qy, qz] = self.align_sub_peak(delta=delta, verbose=verbose)
+        elif ext == 'rasx':
+            (x, y, z) = self.rasx_file(self.filepath)
+            self.tt.append(y)
+            self.omega.append(x)
+            self.data.append(z)
+            self.p, [qx, qy, qz] = self.align_sub_peak(delta=delta, verbos=verbose)
         elif ext == "txt":
             d = self.text_file(self.filepath)
             m = d["Metadata"]
@@ -226,14 +232,14 @@ class ReciprocalSpaceMap:
         # Read RAS data to object
         rasFile = xu.io.rigaku_ras.RASFile(file)
         self.file = rasFile
-        self.scanaxis = rasFile.scans[1].scan_axis
+        self.scan_axis = rasFile.scans[1].scan_axis
         self.step_size = rasFile.scans[1].meas_step
-        self.measureSpeed= rasFile.scans[1].meas_speed
+        self.measure_speed= rasFile.scans[1].meas_speed
         self.data_count = rasFile.scans[1].length
-        time_per_step = self.data_count / self.measureSpeed
+        time_per_step = self.data_count / self.measure_speed
         # Read raw motor position and intensity data to large 1D arrays
 
-        omttRaw, data = xu.io.getras_scan(rasFile.filename+'%s', '', self.scanaxis)
+        omttRaw, data = xu.io.getras_scan(rasFile.filename+'%s', '', self.scan_axis)
 
         counts = np.array(data["int"] * data["att"] / time_per_step)
 
@@ -245,7 +251,7 @@ class ReciprocalSpaceMap:
         # Convert 2theta-omega data to 1D array
         tt_1d = np.array([omttRaw[i] for i in range(0, rasFile.scans[0].length)])
 
-        if self.scanaxis == 'TwoThetaOmega' and self._num_datasets == 0: # If RSM is 2theta/omega vs omega scan, adjust omega values in 2D matrix
+        if self.scan_axis == 'TwoThetaOmega' and self._num_datasets == 0: # If RSM is 2theta/omega vs omega scan, adjust omega values in 2D matrix
             
             omga = [[omga[i] + (n * self.step_size/2) for n in range(0,len(tt_1d))] for i in range(0,len(omga))]
             tt = [[tt_1d[i] for i in range(0,len(tt_1d))] for j in range(0, len(omga))]
@@ -255,6 +261,33 @@ class ReciprocalSpaceMap:
         om = np.array(omga)
         
         return (np.transpose(om), np.transpose(tt), np.transpose(intensities))
+
+    def rasx_file(self, file):
+        rasx_file = RigakuFileRASX(file)
+        self.file = rasx_file
+        d = rasx_file.scans[0].scan_information
+        self.scan_axis = d["axis"]
+        self.step_size = d["step"]
+        self.measure_speed = d["speed"]
+        self.data_count = len(rasx_file.scans[0].scan["intensity"])
+
+        time_per_step = self.data_count * self.step_size / self.measure_speed
+        step_axis = rasx_file.rsm_metadata["step_axis_name"]
+
+        x = np.array([s.axes[step_axis].position for s in rasx_file.scans])
+        y = rasx_file.scans[0].scan[rasx_file.scans[0].scan_information["axis"]]
+        counts = np.array([s.scan["intensity"] * s.scan["attenuator"] / time_per_step for s in rasx_file.scans])
+        intensities = counts.reshape(len(rasx_file.scans), self.data_count)
+        self.axis_raw.append(y)
+
+        if self.scan_axis == 'TwoThetaOmega' and self._num_datasets == 0: # If RSM is 2theta/omega vs omega scan, adjust omega values in 2D matrix
+            
+            x = [[x[i] + (n * self.step_size/2) for n in range(0,len(y))] for i in range(0,len(x))]
+            tt = [[y[i] for i in range(0,len(y))] for j in range(0, len(x))]
+        else:
+            x, y = np.meshgrid(x, y)
+
+        return (np.transpose(x), np.transpose(y), np.transpose(intensities))
 
     def text_file(self, file):
         """
@@ -332,7 +365,7 @@ class ReciprocalSpaceMap:
             print('Error. omega and twotheta arrays must have same dimension. dim(omega) = ' \
                   + str(om.shape) + 'and dim(tt) = ' + str(tt.shape))
         '''    
-        if self.scanaxis == "TwoThetaOmega":
+        if self.scan_axis == "TwoThetaOmega":
             om1D = np.ravel(om)
             tt1D = np.ravel(tt)
             dat1D = np.ravel(self.data)
@@ -347,7 +380,7 @@ class ReciprocalSpaceMap:
         fig.show()
         return ax
     
-    def plotQ(self, xGrid, yGrid, dynLow, dynHigh, fig=None, ax=None, nlev = None, show_title=False, axlabels='hkl', **kwargs):
+    def plotQ(self, xGrid, yGrid, dynLow, dynHigh, fig=None, ax=None, nlev = None, show_title=False, axlabels='hkl', in_plane=False, **kwargs):
         """
         Plots X-ray diffraction mesh scan in reciprocal space. 
         First needs to nonlinearly regrid the angular data into reciprocal space
@@ -388,12 +421,20 @@ class ReciprocalSpaceMap:
             self._gridder_zmin,
             self._gridder_zmax,
         )
-        # If multiple datasets have been loaded, add each one to gridder
-        for d in range(self._num_datasets):
-            x = self.qy[d].ravel()
-            y = self.qz[d].ravel()
-            z = self.data[d].ravel()
-            self.gridder(x,y,z)
+        if in_plane:
+            # If multiple datasets have been loaded, add each one to gridder
+            for d in range(self._num_datasets):
+                x = self.qy[d].ravel()
+                y = self.qx[d].ravel()
+                z = self.data[d].ravel()
+                self.gridder(x,y,z)
+        else:
+            # If multiple datasets have been loaded, add each one to gridder
+            for d in range(self._num_datasets):
+                x = self.qy[d].ravel()
+                y = self.qz[d].ravel()
+                z = self.data[d].ravel()
+                self.gridder(x,y,z)
         
         intHigh = np.argmax(self.gridder.data)
         intMin = np.argmin(self.gridder.data)
@@ -438,6 +479,8 @@ class ReciprocalSpaceMap:
         Sm = xu.materials.elements.Sm
         Sc = xu.materials.elements.Sc
         Nd = xu.materials.elements.Nd
+        Li = xu.materials.elements.Li
+        Nb = xu.materials.elements.Nb
 
         energy = 1240/0.154
 
@@ -492,6 +535,11 @@ class ReciprocalSpaceMap:
             substrate = xu.materials.Crystal(
                 "NdScO3", 
                 xu.materials.SGLattice(62, 5.575, 5.776, 8.003, atoms=[Nd, Sc, O], pos=['4c', '4b', '4c', '8d'])
+            )
+        elif self.substrateMat == "LNO":
+            substrate = xu.materials.Crystal(
+                "LiNbO3",
+                xu.materials.SGLattice(161, 5.14829, 13.8631, atoms=[Li, Nb, O], pos=['6a', '6a', '18b'])
             )
         hxrd = xu.HXRD(
             substrate.Q(int(self.iHKL[0]), int(self.iHKL[1]), int(self.iHKL[2])),
@@ -846,6 +894,11 @@ class RigakuFileRASX:
 
             self.scans.append(RigakuScanRASX(self.file_path, self.scan_metadata[i]))
             i += 1
+        
+        # If datatype is a reciprocal space map, take associated metadata
+        if self.scans[0].metadata["data_type"] == 'RAS_3DE_RSM':
+            self.rsm_metadata = self.scans[0].rsm_metadata
+               
 
     def __str__(self):
         return (f"Rigaku RASX File:\nScans:")
@@ -868,7 +921,12 @@ class RigakuScanRASX:
 
     Instance Attributes
     -------------------
-    
+    metadata : dict
+        Information about the scan, such as:
+        - Sample name (if provided in Rigaku software)
+        - Comment (useful for multi-scan files)
+        - Measurement package name (type of XRD measurement process in software)
+        - Measurement part name (specific scan name, e.g. General Scan, )
     """
     def __init__(self, filename, metadata):
         zipf = zipfile.ZipFile(filename)
@@ -880,15 +938,43 @@ class RigakuScanRASX:
         tree = et.parse(io.BytesIO(hardware))
         root = tree.getroot()
         
-        metadata_query = {
-            "sample_name" : "*.//SampleName",
-            "comment" : "*.//Comment",
-            "measurement_package_name" : "*.//PackageName",
-            "measurement_part_name" : "*.//PartName"
+        self.metadata = self._get_scan_metadata(root)
+        if self.metadata["data_type"] == 'RAS_3DE_RSM':
+            self.rsm_metadata = self._get_RSM_metadata(root)
+        
+        self.scan_information = self._get_scan_information(root)
+        self.hardware = self._get_hardware_information(root)
+        
+        axesdict = self._get_axis_information(root)
+        self.axes = {}
+        for key in axesdict.keys():
+            self.axes[key] = RigakuAxis(axesdict[key])
+            
+        data = pd.read_csv(io.BytesIO(scan), delimiter="\t", names=[self.scan_information["axis"], "intensity", "att"])
+        self.scan = {
+            self.scan_information["axis"] : data[self.scan_information["axis"]],
+            "intensity" : data["intensity"],
+            "attenuator" : data["att"]
         }
 
-        self.metadata = {key : root.find(value).text for key, value in metadata_query.items()}
-
+    def _get_axis_information(self, root):
+        axis_query = {
+            "Omega" : ".//*Axis[@Name='Omega']",
+            "TwoTheta" :  ".//*Axis[@Name='TwoTheta']",
+            "TwoThetaTheta" : ".//*Axis[@Name='TwoThetaTheta']",
+            "TwoThetaOmega" : ".//*Axis[@Name='TwoThetaOmega']",
+            "TwoThetaChi" : ".//*Axis[@Name='TwoThetaChi']",
+            "Chi" : ".//*Axis[@Name='Chi']",
+            "Phi" : ".//*Axis[@Name='Phi']",
+            "Z" : ".//*Axis[@Name='Z']",
+            "Alpha" : ".//*Axis[@Name='Alpha']",
+            "Beta" : ".//*Axis[@Name='Beta']",
+            "Rx" : ".//*Axis[@Name='Rx']",
+            "Ry" : ".//*Axis[@Name='Ry']"
+        }
+        return {key : root.find(value).attrib for key, value in axis_query.items()}
+    
+    def _get_scan_information(self, root):
         scan_query = {
             "axis" : ".//*AxisName",
             "mode" : ".//*Mode",
@@ -904,21 +990,23 @@ class RigakuScanRASX:
             "end_time" : ".//EndTime",
             "unequally_spaced" : ".//UnequalySpaced",
         }
-        self.scan_information = {key : root.find(value).text for key, value in scan_query.items()}
-        
-        self.scan_information["start_angle"] = float(self.scan_information["start_angle"])
-        self.scan_information["end_angle"] = float(self.scan_information["end_angle"])
-        self.scan_information["step"] = float(self.scan_information["step"])
-        self.scan_information["resolution"] = float(self.scan_information["resolution"])
-        self.scan_information["speed"] = float(self.scan_information["speed"])
-        self.scan_information["start_time"] = datetime.datetime.strptime(self.scan_information["start_time"], '%Y-%m-%dT%H:%M:%SZ')
-        self.scan_information["end_time"] = datetime.datetime.strptime(self.scan_information["end_time"], '%Y-%m-%dT%H:%M:%SZ')
-        if self.scan_information["unequally_spaced"] == "True":
-            self.scan_information["unequally_spaced"] = True
+        scan_info = {key : root.find(value).text for key, value in scan_query.items()}
+
+        scan_info["start_angle"] = float(scan_info["start_angle"])
+        scan_info["end_angle"] = float(scan_info["end_angle"])
+        scan_info["step"] = float(scan_info["step"])
+        scan_info["resolution"] = float(scan_info["resolution"])
+        scan_info["speed"] = float(scan_info["speed"])
+        scan_info["start_time"] = datetime.datetime.strptime(scan_info["start_time"], '%Y-%m-%dT%H:%M:%SZ')
+        scan_info["end_time"] = datetime.datetime.strptime(scan_info["end_time"], '%Y-%m-%dT%H:%M:%SZ')
+        if scan_info["unequally_spaced"] == "True":
+            scan_info["unequally_spaced"] = True
         else:
-            self.scan_information["unequally_spaced"] = False
+            scan_info["unequally_spaced"] = False
+        
+        return scan_info
 
-
+    def _get_hardware_information(self, root):
         hardware_query = {
             "gonio" : ".//*Category[@Name='Goniometer']",
             "head" :  ".//*Category[@Name='AttachmentHead']",
@@ -926,35 +1014,69 @@ class RigakuScanRASX:
             "detector" : ".//*Category[@Name='Detector']",
             "detector_mono" : ".//*Category[@Name='DetectorMonochromator']",
             "rec_atten" : ".//*Category[@Name='ReceivingAttenuator']",
+            "incident_slit" : ".//*Axis[@Name='IS'][@Unit='mm']",
+            "receiving_slit_1" : ".//*Axis[@Name='RS1'][@Unit='mm']",
+            "receiving_slit_2" : ".//*Axis[@Name='RS2'][@Unit='mm']",
         }
-        self.hardware = RigakuHardware({key : root.find(value).attrib for key, value in hardware_query.items()})
-        
-        axis_query = {
-            "omega" : ".//*Axis[@Name='Omega']",
-            "twotheta" :  ".//*Axis[@Name='TwoTheta']",
-            "twothetatheta" : ".//*Axis[@Name='TwoThetaTheta']",
-            "twothetaomega" : ".//*Axis[@Name='TwoThetaOmega']",
-            "twothetachi" : ".//*Axis[@Name='TwoThetaChi']",
-            "chi" : ".//*Axis[@Name='Chi']",
-            "phi" : ".//*Axis[@Name='Phi']",
-            "z" : ".//*Axis[@Name='Z']",
-            "alpha" : ".//*Axis[@Name='Alpha']",
-            "beta" : ".//*Axis[@Name='Beta']",
-            "rx" : ".//*Axis[@Name='Rx']",
-            "ry" : ".//*Axis[@Name='Ry']"
-        }
-        axesdict = {key : root.find(value).attrib for key, value in axis_query.items()}
-        self.axes = {}
-        for key in axesdict.keys():
-            self.axes[key] = RigakuAxis(axesdict[key])
-            
-        data = pd.read_csv(io.BytesIO(scan), delimiter="\t", names=[self.scan_information["axis"], "intensity", "att"])
-        self.scan = {
-            self.scan_information["axis"] : data[self.scan_information["axis"]],
-            "intensity" : data["intensity"],
-            "attenuator" : data["att"]
-        }
+        return RigakuHardware({key : root.find(value).attrib for key, value in hardware_query.items()})
 
+    def _get_scan_metadata(self, root):
+        metadata_query = {
+            "sample_name" : "*.//SampleName",
+            "comment" : "*.//Comment",
+            "measurement_package_name" : "*.//PackageName",
+            "measurement_part_name" : "*.//PartName",
+            "data_type" : "*.//DataType",
+        }
+        return {key : root.find(value).text if root.find(value) is not None else None for key, value in metadata_query.items()}
+
+    def _get_RSM_metadata(self, root):
+        rsm_query = {
+            "scan_relative" : ".//*ScanIsRelative",
+            "step_relative" : ".//*StepIsRelative",
+            "scan_axis_start" : ".//*ScanAxisStart",
+            "scan_axis_stop" : ".//*ScanAxisStop",
+            "scan_axis_step" : ".//*ScanAxisStep",
+            "step_axis_name" : ".//*StepAxisName",
+            "step_axis_start" : ".//*StepAxisStart",
+            "step-axis_stop" : ".//*StepAxisStop",
+            "step_axis_step" : ".//*StepAxisStep",
+            "two_theta_origin" : ".//*TwoThetaOrigin",
+            "omega_origin" : ".//*OmegaOrigin",
+            "chi_origin" : ".//*ChiOrigin",
+            "phi_origin" : ".//*PhiOrigin",
+            "two_theta_chi_origin" : ".//*TwoThetaChiOrigin",
+        }
+        try:
+            d = {key : root.find(value).text for key, value in rsm_query.items()}
+        except:
+            raise TypeError("Scan is not part of reciprocal space map!")
+        
+        # Convert true/false values to boolean
+        if d["scan_relative"] == "false":
+            d["scan_relative"] = False
+        else: 
+            d["scan_relative"] = True
+        if d["step_relative"] == "false":
+            d["step_relative"] = False
+        else: 
+            d["step_relative"] = True
+        
+        return d
+
+    def x(self, xlim=None):
+        x = self.scan[self.scan_information["axis"]]
+        if not xlim:
+            xlim=(0,-1)
+        return x[x>xlim[0]:x<xlim[1]]
+    
+    def y(self, xlim=None):
+        x = self.scan[self.scan_information["axis"]]
+        y = self.scan["intensity"]
+        if not xlim:
+            xlim=(0,-1)
+        return y[x>xlim[0]:x<xlim[1]]
+    
 
 def ras_file(file):
     """
