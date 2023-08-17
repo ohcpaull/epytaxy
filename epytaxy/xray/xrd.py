@@ -844,6 +844,7 @@ class RigakuHardware:
     def __repr__(self):
         return f"RigakuHardware( gonio : {self.goniometer}, head : {self.attachment_head}, detector : {self.detector}, atten : {self.receiving_atten})"
 
+
 class RigakuFileRASX:
     """
     Represents a Rigaku .rasx X-ray diffraction file. There can 
@@ -902,7 +903,6 @@ class RigakuFileRASX:
 
     def __str__(self):
         return (f"Rigaku RASX File:\nScans:")
-
 
 
 class RigakuScanRASX:
@@ -989,6 +989,7 @@ class RigakuScanRASX:
             "start_time" : ".//StartTime",
             "end_time" : ".//EndTime",
             "unequally_spaced" : ".//UnequalySpaced",
+            "wavelength" : ".//WavelengthKalpha1"
         }
         scan_info = {key : root.find(value).text for key, value in scan_query.items()}
 
@@ -1003,7 +1004,8 @@ class RigakuScanRASX:
             scan_info["unequally_spaced"] = True
         else:
             scan_info["unequally_spaced"] = False
-        
+        scan_info["wavelength"] = float(scan_info["wavelength"])
+
         return scan_info
 
     def _get_hardware_information(self, root):

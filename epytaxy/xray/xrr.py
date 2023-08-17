@@ -5,6 +5,7 @@ import xml.etree.ElementTree as et
 from refnx.dataset import ReflectDataset
 import re
 from itertools import islice
+from epytaxy.xray import RigakuFileRASX
 
 # mm
 XRR_BEAMWIDTH_SD = 0.019449
@@ -40,6 +41,8 @@ def reduce_xray(f, bkg=None, scale=None, sample_length=None, clip=0):
         spec = parse_xrdml_file(f)
     elif f.endswith('.ras'):
         spec = parse_ras_file(f)
+    elif f.endswith('.rasx'):
+        spec = parse_rasx_file(f)
 
     spec["intensities"] += 1
     reflectivity = spec["intensities"][clip:] / spec["count_time"]
@@ -105,6 +108,40 @@ def reduce_xray(f, bkg=None, scale=None, sample_length=None, clip=0):
 
     return d
 
+def parse_rasx_file(f):
+    """
+    Parses a RASX file
+
+    Parameters
+    ----------
+    f: file-like object or string
+
+    Returns
+    -------
+    d: dict
+        A dictionary containing the RAS file information.  The following keys
+        are used:
+
+        'intensities' - np.ndarray
+            Intensities
+        'twotheta' - np.ndarray
+            Two theta values
+        'omega' - np.ndarray
+            Omega values
+        'count_time' - float
+            How long each point was counted for
+        'wavelength' - float
+            Wavelength of X-ray radiation    
+    """
+    x = RigakuFileRASX(f)
+    d = dict(
+        intensities=x.scans[0].scan["intensity"] * x.scans[0].scan["attenuator"],
+        twotheta = x.scans[0].scan["TwoThetaOmega"],
+        omega = x.scans[0].scan["TwoThetaOmega"]/2,
+        count_time = 1 / x.scans[0].scan_information["speed"] * x.scans[0].scan_information["step"],
+        wavelength = x.scans[0].scan_information["wavelength"],
+    )
+    return d
 
 def parse_ras_file(f):
     """
@@ -209,7 +246,6 @@ def parse_ras_file(f):
     d["wavelength"] = float(wavelength)
 
     return d
-
 
 def parse_xrdml_file(f):
     """
