@@ -19,44 +19,26 @@ class RHEEDPattern:
         self.image = tifffile.imread(os.path.join(data_dir, tif_file))
     
     def get_ROI(self, roi=None):
-        fig, ax = plt.subplots(1,2)
-        self.ax = ax
-        self.fig = fig
-        im = self.ax[0].imshow(
-            self.image,
-            cmap="magma"
-        )
-        ax[1].set(xlabel="Pixels", ylabel="Intensity (a.u.)")
-        
-        if roi == None:
-            self.px1 = 0
-            self.py1 = 0
-            self.px2 = 0
-            self.py2 = 0
-            self.hz_sum = 0
-            self.line, = self.ax[1].plot(self.hz_sum)
 
-        def toggle_selector(event):
-            print(' Key pressed.')
-            if event.key in ['Q', 'q'] and toggle_selector.RS.active:
-                print(' RectangleSelector deactivated.')
-                toggle_selector.RS.set_active(False)
-            if event.key in ['A', 'a'] and not toggle_selector.RS.active:
-                print(' RectangleSelector activated.')
-                toggle_selector.RS.set_active(True)
                 
-        def line_select_callback(eclick, erelease):
-            'eclick and erelease are the press and release events'
+        def select_callback(eclick, erelease):
+            """
+            Callback for line selection.
+
+            *eclick* and *erelease* are the press and release events.
+            """
             x1, y1 = eclick.xdata, eclick.ydata
             x2, y2 = erelease.xdata, erelease.ydata
-
+            print(f"({x1:3.2f}, {y1:3.2f}) --> ({x2:3.2f}, {y2:3.2f})")
+            print(f"The buttons you used were: {eclick.button} {erelease.button}")
+            
             self.px1 = int(x1)
             self.py1 = int(y1)
             self.px2 = int(x2)
             self.py2 = int(y2)
 
             cropped = self.image[self.py1:self.py2, self.px1:self.px2]
-            self.hz_sum = np.sum(cropped, axis=0)
+            self.hz_sum = np.sum(cropped, axis=0)[:,0]
             self.line.set_data(np.arange(len(self.hz_sum)), self.hz_sum)
             
             # update figure
@@ -65,22 +47,45 @@ class RHEEDPattern:
             self.fig.canvas.draw() 
             self.fig.canvas.flush_events()
             
-            
-            
-            
-        toggle_selector.RS = RectangleSelector(
-            ax[0], line_select_callback,
+        self.fig, self.ax = plt.subplots(1, 2, layout='constrained')
+
+        self.ax[0].imshow(
+            self.image,
+            cmap="magma"
+        )
+        self.ax[1].set(xlabel="Pixels", ylabel="Intensity (a.u.)")
+        
+        if roi is None:
+            self.px1 = 0
+            self.py1 = 0
+            self.px2 = 0
+            self.py2 = 0
+            self.hz_sum = 0
+            self.line, = self.ax[1].plot(self.hz_sum)
+        
+        self.RS = RectangleSelector(
+            self.ax[0], select_callback,
+            useblit=True,
             button=[1, 3],  # don't use middle button
-            minspanx=5, 
+            minspanx=5,
             minspany=5,
             spancoords='pixels',
-            interactive=True
+            interactive=True,
         )
-        
         #plt.connect('key_press_event', toggle_selector)
 
         plt.show()
 
+    def fit_RHEED(self, peak_params, fit_method="least_squares"):
+        
+        model = GaussianModel(prefix="BG_")
+        for idx, key in enumerate(peak_params.keys()):
+            model += LorentzianModel(prefix=f"L{idx}_")
+
+        params = model.make_params()
+        x = np.arange(len(self.hz_sum))
+        self.res = model.fit(self.hz_sum, params, x=x, method=fit_method)
+        self.comps = self.res.eval_components(x=x)
 
 class RHEEDOscillator:
     """
