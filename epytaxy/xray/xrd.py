@@ -903,6 +903,84 @@ class RigakuFileRASX:
 
     def __str__(self):
         return (f"Rigaku RASX File:\nScans:")
+    
+    def plotkb(self, scan_num=0, scale="log", **kwargs):
+
+        scan = self.scans[scan_num]
+        x = scan.x()
+        y = scan.y()
+       
+        fig, ax = plt.subplots()
+        ax.plot(x, y)
+        ax.set(ylabel="Intensity (a.u.)", xlabel=f"{scan.scan_information['axis']}", yscale=scale, **kwargs)
+        
+        CuKalpha1_pos = 0
+        CuKalpha2_pos = 0
+        CuKbeta_pos = 0
+        WLalpha1_pos = 0
+        WLalpha2_pos = 0
+        CuKalpha1_line = ax.axvline(CuKalpha1_pos, color="red")
+        CuKalpha2_line = ax.axvline(CuKalpha2_pos, color="red", alpha=0.5)
+        WLalpha1_line = ax.axvline(WLalpha1_pos, color="blue", alpha=0.5)
+        WLalpha2_line = ax.axvline(WLalpha2_pos, color="blue", alpha=0.5)
+        beta_line = ax.axvline(CuKbeta_pos, color="red", alpha=0.5)
+
+        ymax = ax.get_ylim()
+        text_CuKalpha1 = ax.text(0, ymax[1], r"K$\alpha$1")
+        text_CuKalpha2 = ax.text(0, ymax[1], r"K$\alpha$2")
+        text_CuKbeta = ax.text(0, ymax[1], r"K$\beta$")
+        text_WLalpha1 = ax.text(0, ymax[1], r"WL$\alpha$1")
+        text_WLalpha2 = ax.text(0, ymax[1], r"WL$\alpha$2")
+
+        def on_move_x(event):
+            CuK_alpha1 = 1.540593
+            CuK_alpha2 = 1.544414
+            CuK_beta = 1.392246
+            # Tungsten L alpha lines from https://xdb.lbl.gov/Section1/Table_1-2.pdf
+            WL_alpha1 = 1.476424
+            WL_alpha2 = 1.487477
+
+            position_x = event.xdata
+            
+
+
+            # theta = np.arcsin(lambda/2d)
+            # d = lambda/2sin(theta)
+            if isinstance(position_x, float):
+                d = CuK_alpha1 / (2 * np.sin(np.radians(position_x/2)))
+                x_CuKalpha2 = np.degrees(np.arcsin(CuK_alpha2/(2 * d)))
+                x_beta = np.degrees(np.arcsin(CuK_beta/(2*d)))
+                x_WLalpha1 = np.degrees(np.arcsin(WL_alpha1/(2*d)))
+                x_WLalpha2 = np.degrees(np.arcsin(WL_alpha2/(2*d)))
+
+                
+
+                CuKalpha1_line.set_xdata(position_x)
+                text_CuKalpha1.set_position((position_x, ymax[1]))
+
+                CuKalpha2_line.set_xdata(x_CuKalpha2 * 2)
+                text_CuKalpha2.set_position((x_CuKalpha2*2, ymax[1]*0.7))
+
+                beta_line.set_xdata(x_beta * 2)
+                text_CuKbeta.set_position((x_beta*2, ymax[1]))
+
+                WLalpha1_line.set_xdata(x_WLalpha1*2)
+                text_WLalpha1.set_position((x_WLalpha1*2, ymax[1]*0.7))
+
+                WLalpha2_line.set_xdata(x_WLalpha2*2)
+                text_WLalpha2.set_position((x_WLalpha2*2, ymax[1]))
+
+
+
+            fig.canvas.draw() 
+            fig.canvas.flush_events()
+
+
+        
+        plt.connect('motion_notify_event', on_move_x)
+        plt.show()
+
+        return fig, ax
 
 
 class RigakuScanRASX:
@@ -923,10 +1001,32 @@ class RigakuScanRASX:
     -------------------
     metadata : dict
         Information about the scan, such as:
-        - Sample name (if provided in Rigaku software)
-        - Comment (useful for multi-scan files)
-        - Measurement package name (type of XRD measurement process in software)
-        - Measurement part name (specific scan name, e.g. General Scan, )
+        - sample_name              : Sample name (if provided in Rigaku software)
+        - comment                  : Comment about the scan (useful for multi-scan files)
+        - measurement_package_name : Measurement package name (type of XRD measurement process in software)
+        - measurement_part_name    : Measurement part name (specific scan name, e.g. General Scan, )
+        - data_type                : Type of data, i.e. reciprocal space map (RAS_3DE_RSM)
+
+    scan_information : dict
+        Information about the scan, such as:
+            - axis           : str, Name of the scan axis
+            - mode           : 
+            - start_angle    : float, Angle of scan axis at start of measurement
+            - end_angle      : float, Angle of scan axis at end of measurement
+            - step           : float, Step angle between adjacent datapoints in measurement
+            - resolution     : 
+            - speed          : float, Speed of scan
+            - speed_unit     : str, Units of scan speed (typically degrees/minute)
+            - axis_unit      : str, Units of scan axis (typically degrees)
+            - intensity_unit : str, Units of intensity (typically cts/sec)
+            - start time     : datetime.datetime.strptime, Date and time at start of measurement
+            - end_time       : datetime.datetime.strptime, Date and time at end of measurement
+    
+    hardware : RigakuHardware
+
+    scan : dict
+        scan axis : axis data for 
+
     """
     def __init__(self, filename, metadata):
         zipf = zipfile.ZipFile(filename)
@@ -969,9 +1069,17 @@ class RigakuScanRASX:
             "Z" : ".//*Axis[@Name='Z']",
             "Alpha" : ".//*Axis[@Name='Alpha']",
             "Beta" : ".//*Axis[@Name='Beta']",
+        }
+        if self.hardware.attachment_head == "RxRy":
+            axis_query.update({
             "Rx" : ".//*Axis[@Name='Rx']",
             "Ry" : ".//*Axis[@Name='Ry']"
-        }
+            })
+        if self.hardware.attachment_head == "XY-4inch":
+            axis_query.update({
+                "X" : ".//*Axis[@Name='X']",
+                "Y" : ".//*Axis[@Name='Y']",
+            })
         return {key : root.find(value).attrib for key, value in axis_query.items()}
     
     def _get_scan_information(self, root):
@@ -1069,15 +1177,15 @@ class RigakuScanRASX:
     def x(self, xlim=None):
         x = self.scan[self.scan_information["axis"]]
         if not xlim:
-            xlim=(0,-1)
-        return x[x>xlim[0]:x<xlim[1]]
+            xlim=(-np.inf,np.inf)
+        return x[x.between(xlim[0], xlim[1])]  #x.values[x.values>x.iloc[xlim[0]]:x.values<x.iloc[xlim[1]]]
     
     def y(self, xlim=None):
         x = self.scan[self.scan_information["axis"]]
         y = self.scan["intensity"]
         if not xlim:
-            xlim=(0,-1)
-        return y[x>xlim[0]:x<xlim[1]]
+            xlim=(-np.inf,np.inf)
+        return y[x.between(xlim[0], xlim[1])] #y.values[x.values>xlim[0]:x.values<xlim[1]]
     
 
 def ras_file(file):
