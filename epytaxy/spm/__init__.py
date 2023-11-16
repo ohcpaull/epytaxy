@@ -6,7 +6,6 @@ from epytaxy.spm.scanningprobe import (
     load_files,
     file_preview,
     edge_detection_widget,
-    plot_map,
 )
 
 from epytaxy.spm.utils import (
@@ -24,6 +23,8 @@ from epytaxy.spm.utils import (
     sine,
     cosine,
     LineProfile,
+    line_profile,
+    plot_map,
 )
 
 from epytaxy.spm.igor_ibw import (

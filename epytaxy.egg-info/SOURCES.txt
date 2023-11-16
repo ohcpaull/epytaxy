@@ -1,34 +1,23 @@
 README.md
 setup.py
-PFM analysis/Fourier_transform.ipynb
-PFM analysis/.ipynb_checkpoints/PFM_Analysis (2)-checkpoint.ipynb
-PFM analysis/.ipynb_checkpoints/PFM_Analysis-checkpoint.ipynb
-PFM analysis/data/P0125OP0000.h5
-PFM analysis/data/P0125OP0001.h5
-PFM analysis/data/P0125OP0002.h5
-PFM analysis/data/P0125OP0003.h5
-PFM analysis/data/P0125OP0004.h5
-PFM analysis/data/P0125OP0005.h5
-PFM analysis/data/P0125OP0006.h5
-PFM analysis/data/P0125OP0007.h5
-PFM analysis/data/P0142OP0000.h5
-PFM analysis/data/P0142OP0001.h5
-XRD analysis/op18N012_XRR.xrdml
-XRD analysis/.ipynb_checkpoints/RSMview_v1-checkpoint.ipynb
-XRD analysis/.ipynb_checkpoints/Rigaku_XRR_fitting-checkpoint.ipynb
-vlabs/__init__.py
-vlabs/version.py
-vlabs.egg-info/PKG-INFO
-vlabs.egg-info/SOURCES.txt
-vlabs.egg-info/dependency_links.txt
-vlabs.egg-info/requires.txt
-vlabs.egg-info/top_level.txt
-vlabs/neutron/__init__.py
-vlabs/neutron/taipan.py
-vlabs/spm/__init__.py
-vlabs/spm/igor_ibw.py
-vlabs/spm/scanningprobe.py
-vlabs/spm/utils.py
-vlabs/xray/__init__.py
-vlabs/xray/xrd.py
-vlabs/xray/xrr.py
+epytaxy/__init__.py
+epytaxy/version.py
+epytaxy.egg-info/PKG-INFO
+epytaxy.egg-info/SOURCES.txt
+epytaxy.egg-info/dependency_links.txt
+epytaxy.egg-info/requires.txt
+epytaxy.egg-info/top_level.txt
+epytaxy/electron/RHEED.py
+epytaxy/electron/__init__.py
+epytaxy/neutron/__init__.py
+epytaxy/neutron/nist.py
+epytaxy/neutron/taipan.py
+epytaxy/spec/__init__.py
+epytaxy/spec/spectroscopy.py
+epytaxy/spm/__init__.py
+epytaxy/spm/igor_ibw.py
+epytaxy/spm/scanningprobe.py
+epytaxy/spm/utils.py
+epytaxy/xray/__init__.py
+epytaxy/xray/xrd.py
+epytaxy/xray/xrr.py

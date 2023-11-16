@@ -1,15 +1,14 @@
 Metadata-Version: 2.1
-Name: vlabs
-Version: 0.0.5.dev0+2140cf2
+Name: epytaxy
+Version: 0.0.5.dev0+ad5ec83
 Summary: Experimental data reading and analysis tools for TFF
-Home-page: https://github.com/ohcpaull/valanoorlabs
+Home-page: https://github.com/ohcpaull/epytaxy
 Author: Oliver Paull
-Author-email: ohcpaull+vlabs@gmail.com
+Author-email: ohcpaull@gmail.com
 License: BSD
-Project-URL: Bug Tracker, https://github.com/ohcpaull/valanoorlabs/issues
+Project-URL: Bug Tracker, https://github.com/ohcpaull/epytaxy/issues
 Project-URL: Documentation, None
-Project-URL: Source Code, https://github.com/ohcpaull/valanoorlabs
-Description: long_description
+Project-URL: Source Code, https://github.com/ohcpaull/epytaxy
 Platform: Windows
 Platform: Linux
 Platform: Solaris
@@ -26,3 +25,5 @@ Classifier: Topic :: Scientific/Engineering :: Chemistry
 Classifier: Topic :: Scientific/Engineering :: Physics
 Requires-Python: >=3.7
 Description-Content-Type: text/markdown
+
+long_description
