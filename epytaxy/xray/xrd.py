@@ -902,7 +902,16 @@ class RigakuFileRASX:
                
 
     def __str__(self):
-        return (f"Rigaku RASX File:\nScans:")
+        table = pd.DataFrame(columns=["Scan #", "Comment", "Scan Axis"])
+        for idx, sc in enumerate(self.scans):
+            comment = sc.metadata["comment"]
+            scaxis = sc.scan_information["axis"]
+            table.at[idx, "Scan #"] = idx
+            table.at[idx, "Comment"] = comment
+            table.at[idx, "Scan Axis"] = scaxis
+        print(f"Rigaku RASX File: {os.path.basename(self.file_path)}")
+              
+        return table.to_markdown()
     
     def plotkb(self, scan_num=0, scale="log", **kwargs):
 
@@ -1219,8 +1228,6 @@ def ras_file(file):
     
     ax1, data = xu.io.getras_scan(ras_file.filename+'%s', '', d["scan_axis"])
     
-    #d["int"] = np.array(data["int"])
-    #d["att"] = np.array(data["att"])
     d["counts"] = np.array(data["int"]) * np.array(data["att"])
     d["2theta"] = np.array(data["TwoThetaOmega"])
     
