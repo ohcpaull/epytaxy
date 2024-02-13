@@ -1,12 +1,13 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import os
+import os, re
 from matplotlib.patches import Rectangle
 from matplotlib.widgets  import RectangleSelector
 from matplotlib.backend_bases import MouseButton
 from lmfit.models import LorentzianModel, GaussianModel
-import tifffile
+import tifffile, datetime
+from uncertainties import unumpy
 
 class RHEEDPattern:
     """
@@ -174,4 +175,125 @@ class RHEEDOscillator:
             ax.set_xlabel("time (s)")
             ax.set_ylabel("Intensity (a.u.)")
         return fig, ax
-            
+    
+def pol_correction(up, down, S=0.3, uncertainty=False):
+
+    up = unumpy.uarray(up, np.sqrt(up))
+    down = unumpy.uarray(down, np.sqrt(down))
+
+
+    P = 1/S * (up - down)/(up + down)
+    pos_true = (1 + P) * (up + down)/2
+    neg_true = (1 - P) * (up + down)/2
+
+    if uncertainty:
+        return pos_true, neg_true
+    return pos_true.n, neg_true.n
+
+
+def read_arpes_1D(file, data_dir=None):
+    re_info1 = re.compile(r"Info 1")
+    
+    re_num_regions = re.compile(r"Number of Regions")
+    re_region_name = re.compile(r"Region Name")
+
+    re_dim_1_name = re.compile(r"Dimension 1 name")
+    re_dim_1_size = re.compile(r"Dimension 1 size")
+    re_dim_1_scale = re.compile(r"Dimension 1 scale")
+
+    re_dim_2_name = re.compile(r"Dimension 2 name")
+    re_dim_2_size = re.compile(r"Dimension 2 size")
+    re_dim_2_scale = re.compile(r"Dimension 2 scale")
+
+    re_pass_energy = re.compile(r"Pass Energy")
+    re_num_sweeps = re.compile(r"Number of Sweeps")
+    re_excitation_energy = re.compile(r"Excitation Energy")
+    re_low_energy = re.compile(r"Low Energy")
+    re_high_energy = re.compile(r"High Energy")
+    re_energy_step = re.compile(r"Energy Step")
+    re_step_time = re.compile(r"Step Time")
+    re_date = re.compile(r"Date")
+    re_time = re.compile(r"Time")
+    re_sample = re.compile(r"Sample")
+    re_thetaX = re.compile(r"ThetaX")
+    re_thetaY = re.compile(r"ThetaY")
+
+    re_data = re.compile(r"Data 1")
+    
+
+    if data_dir:
+        fpath = os.path.join(data_dir, file)
+    else:
+        fpath = file
+    with open(fpath, 'r') as f:
+        f.readline()
+        regions = f.readline()
+        #print(regions)
+        if re_num_regions.search(regions):
+            num_regions = int(regions.split("=")[1])
+            for i in range(2):
+                f.readline()
+            #print(num_regions)
+            dicts = []
+            for reg in range(num_regions):
+                #print(reg)
+
+                dicts.append({})
+                f.readline()
+                dicts[reg]["region_name"] = f.readline().split("=")[1].strip("\n")
+                dicts[reg]["dimension_1_name"] = f.readline().split("=")[1].strip("\n")
+                dicts[reg]["dimension_1_size"] = int(f.readline().split("=")[1])
+                f.readline()
+                f.readline()
+                dicts[reg]["signal_name"] = f.readline().split("=")[1].strip("\n")
+                dicts[reg]["signal_unit"] = f.readline().split("=")[1].strip("\n")
+                for i in range(4):
+                    f.readline()
+
+                dicts[reg]["region_name"] = f.readline().split("=")[1].strip("\n")
+                for i in range(2):
+                    f.readline()
+
+                dicts[reg]["num_passes"] = int(f.readline().split("=")[1].strip("\n"))
+                dicts[reg]["excitation_energy"] = float(f.readline().split("=")[1].strip("\n"))
+                for i in range(4):
+                    f.readline()
+                
+                dicts[reg]["low_energy"] = f.readline().split("=")[1].strip("\n")
+                dicts[reg]["high_energy"] = f.readline().split("=")[1].strip("\n")
+                dicts[reg]["energy_step"] = f.readline().split("=")[1].strip("\n")
+                dicts[reg]["step_time"] = f.readline().split("=")[1].strip("\n")
+                for i in range(2):
+                    f.readline()
+                dicts[reg]["spectrum_name"] = f.readline().split("=")[1].strip("\n")
+                for i in range(3):
+                    f.readline()
+                dicts[reg]["sample"] = f.readline().split("=")[1].strip("\n")
+                f.readline()
+                date = f.readline().split("=")[1]
+                date = date.strip("\n").split("-")
+                dicts[reg]["date"] = datetime.date(int(date[0]), int(date[1]), int(date[2]))
+
+                time = f.readline().split("=")[1].strip("\n").split(":")
+                dicts[reg]["time"] = datetime.time(int(time[0]), int(time[1]), int(time[2]))
+                for i in range(2):
+                    f.readline()
+                dicts[reg]["theta_x"] = float(f.readline().split("=")[1])
+                dicts[reg]["theta_y"] = float(f.readline().split("=")[1])
+
+                for i in range(5):
+                    f.readline()
+                
+                x = np.zeros(dicts[reg]["dimension_1_size"])
+                y = np.zeros(len(x))
+                for n in range(dicts[reg]["dimension_1_size"]):
+                    ln = f.readline()
+                    #print(ln)
+                    x[n] = ln.split()[0]
+                    y[n] = ln.split()[1]
+                
+                f.readline()
+
+                dicts[reg]["x"] = x
+                dicts[reg]["y"] = y
+    return dicts
