@@ -26,6 +26,7 @@ from itertools import islice
 import zipfile, io
 import pandas as pd
 import datetime
+import imageio as imgio
 
 
 # mm
@@ -828,6 +829,16 @@ class RigakuAxis:
             f"Mode : {self.state}\n"
         )
     
+    def to_dict(self):
+        return {
+            'name' : self.name, 
+            'unit' : self.unit, 
+            'offset' : self.offset, 
+            'position' : self.position, 
+            'state' : self.state, 
+            'resolution' : self.resolution
+        }
+    
 
 class RigakuHardware:
     """
@@ -843,6 +854,16 @@ class RigakuHardware:
 
     def __repr__(self):
         return f"RigakuHardware( gonio : {self.goniometer}, head : {self.attachment_head}, detector : {self.detector}, atten : {self.receiving_atten})"
+
+    def to_dict(self):
+        return {
+            'goniometer' : self.goniometer, 
+            'attachment_head' : self.attachment_head, 
+            'attachment_stage' : self.attachment_stage,
+            'detector' : self.detector,
+            'detector_mono' : self.detector_mono,
+            'receiving_atten' : self.receiving_atten
+        }
 
 
 class RigakuFileRASX:
@@ -860,7 +881,7 @@ class RigakuFileRASX:
 
     Instance attributes
     -------------------
-    file_path : os.path
+    file_path : os.path, BytesIO
         Full path to data file
     scan_metadata : list
         List of dictionaries for each scan within the file. Each
@@ -872,35 +893,71 @@ class RigakuFileRASX:
         hardware information)
     """
     def __init__(self, filename, data_directory="."):
-        
-        zipf = zipfile.ZipFile(os.path.join(data_directory, filename))
+        #print(type(filename))
+
+        self.data_directory = data_directory
+
+        if isinstance(filename, io.BytesIO):
+            zipf = zipfile.ZipFile(filename)
+            self.file_path = filename
+        elif isinstance(filename, os.PathLike):
+            zipf = zipfile.ZipFile(filename)
+            self.file_path = filename
+        elif isinstance(filename, str):
+            self.file_path = os.path.join(data_directory, filename)
+            zipf = zipfile.ZipFile(self.file_path)
+            
+        else:
+            #zipf = zipfile.ZipFile(filename)
+            raise TypeError(f"File is {type(filename)}")
+
+
         root = et.parse(io.BytesIO(zipf.read("root.xml"))).getroot()
-        self.file_path = os.path.join(data_directory, filename)
+        
         self.scan_metadata = []
         self.scans = []
-        i = 0
-
-        while True:
-            res = root.find(f"Data{i}")
-            if res is None:
-                break
-            f = res.findall("ContentHashList")
-            scan_name = f[0].attrib["Name"]
-            hardware_name = f[1].attrib["Name"]
-            self.scan_metadata.append(dict(
-                container = res.tag,
-                scan_name = scan_name,
-                config_name = hardware_name
-            ))
-
-            self.scans.append(RigakuScanRASX(self.file_path, self.scan_metadata[i]))
-            i += 1
+        res = root.find("Data0")
+        if res is None:
+            raise ValueError("No data inside rasx file!")
         
-        # If datatype is a reciprocal space map, take associated metadata
-        if self.scans[0].metadata["data_type"] == 'RAS_3DE_RSM':
-            self.rsm_metadata = self.scans[0].rsm_metadata
-               
 
+        # If Data0 type is SampleImage, make a map object
+        if res.attrib["Type"] == "SampleImage":
+            f = res.findall("ContentHashList")
+            map_name = f[0].attrib["Name"]
+            container = res.tag
+            config_name = None
+            self.map_metadata = (dict(
+                container=container,
+                scan_name=map_name,
+                config_name=config_name
+            ))
+            self.map = RigakuMapRASX(self.file_path, self.map_metadata)
+
+
+        # If Data0 type is Profile, data is either a single (or multiple) 
+        # individual scans or a reciprocal space map
+        elif res.attrib["Type"] == "Profile":
+            i = 0
+            while True:
+                res = root.find(f"Data{i}")
+                if res is None:
+                    break
+                f = res.findall("ContentHashList")
+                scan_name = f[0].attrib["Name"]
+                hardware_name = f[1].attrib["Name"]
+                self.scan_metadata.append(dict(
+                    container = res.tag,
+                    scan_name = scan_name,
+                    config_name = hardware_name
+                ))
+                self.scans.append(RigakuScanRASX(self.file_path, self.scan_metadata[i]))
+                i += 1
+
+            # If datatype is a reciprocal space map, take associated metadata
+            if self.scans[0].metadata["data_type"] == 'RAS_3DE_RSM':
+                self.rsm_metadata = self.scans[0].rsm_metadata
+               
     def __str__(self):
         table = pd.DataFrame(columns=["Scan #", "Comment", "Scan Axis"])
         for idx, sc in enumerate(self.scans):
@@ -912,7 +969,40 @@ class RigakuFileRASX:
         print(f"Rigaku RASX File: {os.path.basename(self.file_path)}")
               
         return table.to_markdown()
-    
+
+    def load_map_scans(self, filestem, data_directory="."):
+        """
+        If RigakuFileRASX is a XY map file, we need to load
+        all the datasets for each XY point into the class.
+
+        TODO: Need to make this more general in case there 
+        are multiple scans within a single .rasx file.
+
+        Parameters
+        ---------
+        filestem : str
+            The stem of the filename that will be iterated over.
+            Naming convention is f"{filestem}_001.rasx
+        data_directory : str or os.path
+        """
+        for idx in range(len(self.map.sampling_points)):
+            filename = f"{filestem}_{str(idx+1).zfill(3)}.rasx"
+            tmp = zipfile.ZipFile(os.path.join(data_directory, filename))
+            root = et.parse(io.BytesIO(tmp.read("root.xml"))).getroot()
+
+            res = root.find(f"Data0")
+            if res is None:
+                break
+            f = res.findall("ContentHashList")
+            scan_name = f[0].attrib["Name"]
+            hardware_name = f[1].attrib["Name"]
+            self.scan_metadata.append(dict(
+                container = res.tag,
+                scan_name = scan_name,
+                config_name = hardware_name
+            ))
+            self.scans.append(RigakuScanRASX(os.path.join(data_directory, filename), self.scan_metadata[idx]))
+
     def plotkb(self, scan_num=0, scale="log", **kwargs):
 
         scan = self.scans[scan_num]
@@ -992,6 +1082,93 @@ class RigakuFileRASX:
         return fig, ax
 
 
+class RigakuMapRASX:
+    def __init__(self, filename, metadata):
+        zipf = zipfile.ZipFile(filename)
+
+        scan = zipf.read(f"{metadata['container']}/{metadata['scan_name']}")
+
+        ns = {"rasx" : "http://www.w3.org/2001/XMLSchema"}
+        tree = et.parse(io.BytesIO(scan))
+        root = tree.getroot()
+
+        self.map_information = self._get_map_metadata(root)
+        self.sampling_points = self._get_sampling_points(root)
+        self.image = imgio.imread(zipf.read(f"{metadata['container']}/Image0.png"))
+        
+    def _get_map_metadata(self, root):
+        map_query = {
+            "date" : ".//Date",
+            "x_pixel_size" : ".//PixelSizeXmm",
+            "y_pixel_size" : ".//PixelSizeYmm",
+            "center_x" : ".//CenterX",
+            "center_y" : ".//CenterY",
+            "center_x_px" : ".//CenterXInPixels",
+            "center_y_px" : ".//CenterYInPixels",
+            "center_x_offset_px" : ".//CenterXOffsetInPixels",
+            "center_y_offset_px" : ".//CenterYOffsetInPixels",
+            "lens_ratio" : ".//LensRatio",
+            "index" : ".//Index",
+            "brightness" : ".//Brightness"
+        }
+        scan_info = {key : root.find(value).text for key, value in map_query.items()}
+
+        scan_info["date"] = str(scan_info["date"])# , '%Y-%m-%dT%H:%M:%S.%f%z')
+        scan_info["x_pixel_size"] = float(scan_info["x_pixel_size"])
+        scan_info["y_pixel_size"] = float(scan_info["y_pixel_size"])
+        scan_info["center_x"] = float(scan_info["center_x"])
+        scan_info["center_y"] = float(scan_info["center_y"])
+        scan_info["center_x_px"] = float(scan_info["center_x_px"])
+        scan_info["center_y_px"] = float(scan_info["center_y_px"])
+        scan_info["center_x_offset_px"] = float(scan_info["center_x_offset_px"])
+        scan_info["center_y_offset_px"] = float(scan_info["center_y_offset_px"])
+        scan_info["lens_ratio"] = str(scan_info["lens_ratio"])
+        scan_info["index"] = int(scan_info["index"])
+        scan_info["brightness"] = float(scan_info["brightness"])
+
+        return scan_info
+
+    def _get_sampling_points(self, root):
+        d = []
+        dtype = dict(
+            x_pos = float,
+            y_pos = float,
+            z_pos = float,
+            executed = bool,
+            phi_pos = float,
+            comment = str,
+            order = int
+        )
+        sampling_points = root.find(".//SamplingPoints")
+
+        sampling_query = {
+            "x_pos" : ".//Xmm",
+            "y_pos" : ".//Ymm",
+            "z_pos" : ".//Zmm",
+            "executed" : ".//IsExecute",
+            "phi_pos" : ".//Phi",
+            "comment" : ".//Comment",
+            "order" : ".//OrderInList",
+        }
+        for sample in sampling_points:
+            d.append({key : dtype[key](sample.find(value).text) for key, value in sampling_query.items()})
+        return d
+    
+    def plot_over_image(self, colors="None"):
+        if not fig:
+            fig, ax = plt.subplots()
+        xpts = np.array([point["x_pos"] for point in self.sampling_points])
+        ypts = np.array([point["y_pos"] for point in self.sampling_points])
+        xmin = self.map.map_information['center_x'] - (self.map.map_information['center_x_px'] - self.map.map_information['center_x_offset']) * self.map.map_information['x_pixel_size'] 
+        ymin = self.map.map_information['center_y'] - (self.map.map_information['center_y_px'] - self.map.map_information['center_y_offset']) * self.map.map_information['y_pixel_size'] 
+        xmax = self.map.map_information['center_x'] + (self.map.map_information['center_x_px'] - self.map.map_information['center_x_offset']) * self.map.map_information['x_pixel_size'] 
+        ymax = self.map.map_information['center_y'] + (self.map.map_information['center_y_px'] - self.map.map_information['center_y_offset']) * self.map.map_information['y_pixel_size'] 
+
+        ax.imshow(self.image, extent=[xmin, xmax, ymin, ymax])
+        ax.set(xlabel="X (mm)", ylabel="Y (mm)")
+        ax.scatter(xpts, ypts, marker='s', facecolor=colors, edgecolor='red')
+        
+        
 class RigakuScanRASX:
     """
     Reads the new format of Rigaku XRD files - "RASX". These files are zipped
