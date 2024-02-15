@@ -27,16 +27,14 @@ import zipfile, io
 import pandas as pd
 import datetime
 import imageio as imgio
+from distutils.util import strtobool
 
 
 # mm
 XRR_BEAMWIDTH_SD = 0.019449
 
 rcParams.update({'figure.autolayout': True})
-#%matplotlib notebook
-#%matplotlib inline
 
-#__all__ = ["lattice", "find_nearest"]
 
 class ReciprocalSpaceMap:
     """
@@ -872,6 +870,12 @@ class RigakuFileRASX:
     be multiple scans per file, and different scan axes in each
     scan. 
 
+    Map files contain an image of the sample and a set of 
+    sampling points, but the scans for each point need to be loaded
+    separately using `RigakuFileRASX.load_map_scans`. Be warned that
+    once this is done, the scans will not be in `RigakuFileRASX.scans`
+    but in the `RigakuMapRASX.sampling_points` dictionary.
+
     Parameters
     ----------
     filename : str
@@ -896,7 +900,7 @@ class RigakuFileRASX:
         #print(type(filename))
 
         self.data_directory = data_directory
-
+        self.scan_metadata = []
         if isinstance(filename, io.BytesIO):
             zipf = zipfile.ZipFile(filename)
             self.file_path = filename
@@ -911,11 +915,7 @@ class RigakuFileRASX:
             #zipf = zipfile.ZipFile(filename)
             raise TypeError(f"File is {type(filename)}")
 
-
-        root = et.parse(io.BytesIO(zipf.read("root.xml"))).getroot()
-        
-        self.scan_metadata = []
-        self.scans = []
+        root = et.parse(io.BytesIO(zipf.read("root.xml"))).getroot()       
         res = root.find("Data0")
         if res is None:
             raise ValueError("No data inside rasx file!")
@@ -938,6 +938,8 @@ class RigakuFileRASX:
         # If Data0 type is Profile, data is either a single (or multiple) 
         # individual scans or a reciprocal space map
         elif res.attrib["Type"] == "Profile":
+            self.scans = []
+            self.scan_metadata = []
             i = 0
             while True:
                 res = root.find(f"Data{i}")
@@ -970,10 +972,13 @@ class RigakuFileRASX:
               
         return table.to_markdown()
 
-    def load_map_scans(self, filestem, data_directory="."):
+    def load_map_scans(self, data_directory="."):
         """
         If RigakuFileRASX is a XY map file, we need to load
         all the datasets for each XY point into the class.
+
+        Important: This function assumes there is a folder
+        which ONLY contains all the scan files in the map.
 
         TODO: Need to make this more general in case there 
         are multiple scans within a single .rasx file.
@@ -985,9 +990,8 @@ class RigakuFileRASX:
             Naming convention is f"{filestem}_001.rasx
         data_directory : str or os.path
         """
-        for idx in range(len(self.map.sampling_points)):
-            filename = f"{filestem}_{str(idx+1).zfill(3)}.rasx"
-            tmp = zipfile.ZipFile(os.path.join(data_directory, filename))
+        for idx, fname in enumerate(os.listdir(data_directory)):
+            tmp = zipfile.ZipFile(os.path.join(data_directory, fname))
             root = et.parse(io.BytesIO(tmp.read("root.xml"))).getroot()
 
             res = root.find(f"Data0")
@@ -1001,7 +1005,14 @@ class RigakuFileRASX:
                 scan_name = scan_name,
                 config_name = hardware_name
             ))
-            self.scans.append(RigakuScanRASX(os.path.join(data_directory, filename), self.scan_metadata[idx]))
+            scan = RigakuScanRASX(os.path.join(data_directory, fname), self.scan_metadata[idx])
+            x = scan.axes["X"].position
+            y = scan.axes["Y"].position
+
+            for point in self.map.sampling_points:
+                if point["x_pos"] == x  and point["y_pos"] == y:
+                    point["scan"] = scan
+                    point["masked"] = False
 
     def plotkb(self, scan_num=0, scale="log", **kwargs):
 
@@ -1134,7 +1145,7 @@ class RigakuMapRASX:
             x_pos = float,
             y_pos = float,
             z_pos = float,
-            executed = bool,
+            executed = strtobool,
             phi_pos = float,
             comment = str,
             order = int
@@ -1150,24 +1161,60 @@ class RigakuMapRASX:
             "comment" : ".//Comment",
             "order" : ".//OrderInList",
         }
-        for sample in sampling_points:
+
+        for idx, sample in enumerate(sampling_points):
             d.append({key : dtype[key](sample.find(value).text) for key, value in sampling_query.items()})
+            d[idx]["masked"] = True
+
         return d
     
-    def plot_over_image(self, colors="None"):
+    def plot_over_image(self, key=None, fig=None, **kwargs):
+        """
+        Plots a contourf map over the image of the sample that has been mapped. 
+        Once you have loaded your scan data into the map, you can analyse each 
+        scan to obtain some sort of parameter (max intensity, peak position, etc.)
+        through simple analysis and add it to the `sampling_points` list of dictionaries.
+
+        This function will take the figure of merit from each dictionary and plot it
+        on top of the image.
+
+        Parameters
+        ----------
+        key : str
+            Dictionary key of the figure of merit (e.g. "max_int")
+        fig : matplotlib.pyplot.figure
+            Optional figure to pass to place the plot
+        **kwargs : dict
+            extra keyword arguments for `contourf` plotting.
+
+        Returns
+        -------
+        im : matplotlib.contour.QuadContourSet
+            im returned from plot
+        ax : matplotlib.axes
+        """
         if not fig:
             fig, ax = plt.subplots()
         xpts = np.array([point["x_pos"] for point in self.sampling_points])
         ypts = np.array([point["y_pos"] for point in self.sampling_points])
-        xmin = self.map.map_information['center_x'] - (self.map.map_information['center_x_px'] - self.map.map_information['center_x_offset']) * self.map.map_information['x_pixel_size'] 
-        ymin = self.map.map_information['center_y'] - (self.map.map_information['center_y_px'] - self.map.map_information['center_y_offset']) * self.map.map_information['y_pixel_size'] 
-        xmax = self.map.map_information['center_x'] + (self.map.map_information['center_x_px'] - self.map.map_information['center_x_offset']) * self.map.map_information['x_pixel_size'] 
-        ymax = self.map.map_information['center_y'] + (self.map.map_information['center_y_px'] - self.map.map_information['center_y_offset']) * self.map.map_information['y_pixel_size'] 
+        xmin = self.map_information['center_x'] - (self.map_information['center_x_px'] - self.map_information['center_x_offset_px']) * self.map_information['x_pixel_size'] 
+        ymin = self.map_information['center_y'] - (self.map_information['center_y_px'] - self.map_information['center_y_offset_px']) * self.map_information['y_pixel_size'] 
+        xmax = self.map_information['center_x'] + (self.map_information['center_x_px'] - self.map_information['center_x_offset_px']) * self.map_information['x_pixel_size'] 
+        ymax = self.map_information['center_y'] + (self.map_information['center_y_px'] - self.map_information['center_y_offset_px']) * self.map_information['y_pixel_size'] 
+
+        masked = np.ma.array([point["masked"] for point in self.sampling_points]).reshape(len(np.unique(ypts)), len(np.unique(xpts)))
 
         ax.imshow(self.image, extent=[xmin, xmax, ymin, ymax])
         ax.set(xlabel="X (mm)", ylabel="Y (mm)")
-        ax.scatter(xpts, ypts, marker='s', facecolor=colors, edgecolor='red')
-        
+
+        if key:
+            xpts_valid = np.array([point["x_pos"] for point in self.sampling_points if "max_int" in point.keys()])
+            ypts_valid = np.array([point["y_pos"] for point in self.sampling_points if "max_int" in point.keys()])
+            z = np.ma.array([point[key] for point in self.sampling_points]).reshape(len(np.unique(ypts)), len(np.unique(xpts)))
+            im = ax.contourf(np.unique(xpts), np.unique(ypts), z, **kwargs)
+        else:
+            im = ax.scatter(xpts, ypts)
+        return im, ax
         
 class RigakuScanRASX:
     """
