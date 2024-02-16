@@ -1168,7 +1168,7 @@ class RigakuMapRASX:
 
         return d
     
-    def plot_over_image(self, key=None, fig=None, **kwargs):
+    def plot_over_image(self, key=None, ax=None, **kwargs):
         """
         Plots a contourf map over the image of the sample that has been mapped. 
         Once you have loaded your scan data into the map, you can analyse each 
@@ -1193,7 +1193,7 @@ class RigakuMapRASX:
             im returned from plot
         ax : matplotlib.axes
         """
-        if not fig:
+        if not ax:
             fig, ax = plt.subplots()
         xpts = np.array([point["x_pos"] for point in self.sampling_points])
         ypts = np.array([point["y_pos"] for point in self.sampling_points])
@@ -1211,6 +1211,7 @@ class RigakuMapRASX:
             xpts_valid = np.array([point["x_pos"] for point in self.sampling_points if "max_int" in point.keys()])
             ypts_valid = np.array([point["y_pos"] for point in self.sampling_points if "max_int" in point.keys()])
             z = np.ma.array([point[key] for point in self.sampling_points]).reshape(len(np.unique(ypts)), len(np.unique(xpts)))
+            self.masked_map = dict(x=np.unique(xpts_valid), y=np.unique(ypts_valid), z=z)
             im = ax.contourf(np.unique(xpts), np.unique(ypts), z, **kwargs)
         else:
             im = ax.scatter(xpts, ypts)

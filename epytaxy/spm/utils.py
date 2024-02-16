@@ -6,6 +6,9 @@ import lmfit
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
+def str2bool(v):
+  return str(v).lower() in ("yes", "true", "t", "1")
+
 def _line_profile_coordinates(src, dst, linewidth=1):
     """
     Return the coordinates of the profile of an image along a scan line.
@@ -214,7 +217,7 @@ class LineProfile:
         axis.add_artist(cp_f)
         return axis
 
-def line_profile(data, scan_size, width=50.0, linewidth=1, **kwargs):
+def line_profile(data, xvec, yvec, length_unit="µm", height_unit="nm", width=50.0, linewidth=1, **kwargs):
     """
     Plots a data channel in an interactive jupyter notebook figure.
 
@@ -225,11 +228,20 @@ def line_profile(data, scan_size, width=50.0, linewidth=1, **kwargs):
 
     Parameters
     ----------
-    channel     :   str or np.ndarray
-        Channel to plot and obtain line profile
+    data :   np.ndarray
+        2D array data that will be plotted with `matplotlib.pyplot.imshow`
+    xvec : np.ndarray
+        Values for the x-axis of the 2D data
+    yvec : np.ndarray
+        Values for the y-axis of the 2D data
+    length_unit : str
+        Unit of length of the x and y dimensions. Used in plotting labels
+    height_unit : str
+        Unit of height for the 2D map. Used in plotting labels
     width       :   float
-        Width in nanometres to integrate the linescan over. If you think this
-        unit of width is silly then come fight me 
+        Width in `length_unit` to integrate the linescan over
+    linewidth : int
+        Width of line over 2D data
 
     """
 
@@ -241,18 +253,22 @@ def line_profile(data, scan_size, width=50.0, linewidth=1, **kwargs):
     else:
         color = "black"
 
-    fig, ax = plt.subplots(2,1)
+    fig, ax = plt.subplots(1,2)
 
-    im, cbar = plot_map(ax[0], data,  x_vec = scan_size, y_vec = scan_size, cbar_label="nm", **kwargs)
-    ax[0].set(xlabel="X (µm)", ylabel="Y (µm)") 
+    im, cbar = plot_map(ax[0], data,  x_vec = xvec, y_vec = yvec, cbar_label=height_unit, **kwargs)
+    ax[0].set(xlabel=f"X ({length_unit})", ylabel=f"Y ({length_unit})") 
     pos = []
     line = []
     px, py = [], []
     xyA, xyB = (), ()
     
-    axis_length = len(data)
+    xaxis_len = len(xvec)
+    yaxis_len = len(yvec)
+
+    xspan = max(xvec) - min(xvec)
+    yspan = max(yvec) - min(yvec)
     # Convert width between nanometres and pixels
-    width = int(np.round(width / 1000 / scan_size * axis_length))
+    width = int(np.round(width / xspan * xaxis_len))
 
 
     def onclick(event):
@@ -290,8 +306,8 @@ def line_profile(data, scan_size, width=50.0, linewidth=1, **kwargs):
             
 
 
-            diff_x = (lp.px_f[0] - lp.px_i[0]) / axis_length * scan_size
-            diff_y = (lp.px_f[1] - lp.px_i[1]) / axis_length * scan_size
+            diff_x = (lp.px_f[0] - lp.px_i[0]) / xaxis_len * xspan
+            diff_y = (lp.px_f[1] - lp.px_i[1]) / yaxis_len * yspan
             sample_distance = np.hypot(diff_x, diff_y)
 
             lp.s_dist = np.linspace(0, sample_distance, len(lp.line_profile))
@@ -303,12 +319,12 @@ def line_profile(data, scan_size, width=50.0, linewidth=1, **kwargs):
                 label=f"line profile",
                 color="k"
             )
-            ax[1].set(xlabel="Distance (µm)", ylabel=f"Height (nm)", title="Line Profile")
+            ax[1].set(xlabel=f"Distance ({length_unit})", ylabel=f"Height ({height_unit})", title="Line Profile")
 
             # Plot line and width 
             lp._plot_over_channel(ax[0])
             
-            plt.savefig("LNO2_2A_LP.png", dpi=300)
+
 
 
         else:
@@ -324,8 +340,6 @@ def line_profile(data, scan_size, width=50.0, linewidth=1, **kwargs):
             line[1].remove()
             line[2].remove()
             line.clear()
-
-
 
         fig.canvas.draw()
 
@@ -571,6 +585,10 @@ def get_2DFFT(image):
     return fft_image
 
 # Curve fitting functions
+def _gaussian2d(x, y, x0, y0, xalpha, yalpha, A, offs):
+    return A * np.exp(
+    -((x - x0) / xalpha) ** 2 - ((y - y0) / yalpha)**2
+    ) + offs
 
 def gaussian2d(M, *args):
     """
@@ -638,7 +656,7 @@ def Gauss2d(M, **params):
     arr = np.zeros(x.shape)
     p = []
     if isinstance(params, dict):
-        for key in ["XCEN", "YCEN", "SIGMAX", "SIGMAY", "AMP", "BACKGROUND", "ANGLE"]:
+        for key in params.keys():#["XCEN", "YCEN", "SIGMAX", "SIGMAY", "AMP", "BACKGROUND", "ANGLE"]:
             p.append(params[key])
 
 
