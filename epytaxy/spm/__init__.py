@@ -10,6 +10,7 @@ from epytaxy.spm.scanningprobe import (
 
 from epytaxy.spm.utils import (
     gaussian,
+    Gauss2d,
     skewed_gauss,
     rayleigh,
     exp_dist,

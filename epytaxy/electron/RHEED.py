@@ -8,6 +8,7 @@ from matplotlib.backend_bases import MouseButton
 from lmfit.models import LorentzianModel, GaussianModel
 import tifffile, datetime
 from uncertainties import unumpy
+import xarray as xr
 
 class RHEEDPattern:
     """
@@ -175,20 +176,77 @@ class RHEEDOscillator:
             ax.set_xlabel("time (s)")
             ax.set_ylabel("Intensity (a.u.)")
         return fig, ax
+
+
+DROP_KEYS = {
+    "width" : int,
+    "height" : int,
+    "depth" : int, 
+    "byteperpoint" : int,
+    "first_full" : int,
+    "last_full" : int,
+    "widthoffset" : float,
+    "widthdelta" : float,
+    "heightoffset" : float,
+    "heightdelta" : float,
+    "depthoffset" : float,
+    "depthdelta" : float, 
+    "widthlabel" : str,
+    "heightlabel" : str,
+    "depthlabel" : str,
+    "name" : str,
+    "validregion" : float,
+}
+class ARPESMap:
+
+    def __init__(self, file_name, data_dir=None):
+        if not data_dir:
+            data_dir = "."
+        fname = file_name.split(".")[0]
+        with open(os.path.join(data_dir, f"{fname}.ini"), 'r') as f:
+            self.meta = {}
+            for line in f:
+                ln = line.split("=")
+                if len(ln) < 2:
+                    continue
+                a = ln[0]
+                b = ln[1]
+                if a in DROP_KEYS.keys():
+                    self.meta.update({a : DROP_KEYS[a](b.strip("\n"))})
+
+        with open(os.path.join(data_dir, f"{fname}.bin"), 'rb') as f:
+            d = np.fromfile(f, dtype='float32')
+        
+        coordinates = [
+            np.arange(self.meta["depthoffset"], self.meta["depthoffset"] + self.meta["depth"] * self.meta["depthdelta"], self.meta["depthdelta"]),
+            np.arange(self.meta["heightoffset"], self.meta["heightoffset"] + self.meta["height"] * self.meta["heightdelta"], self.meta["heightdelta"]),
+            np.arange(self.meta["widthoffset"], self.meta["widthoffset"] + self.meta["width"] * self.meta["widthdelta"], self.meta["widthdelta"]),
+        ]
+        self.data = xr.DataArray(
+            d.reshape(self.meta["depth"], self.meta["height"], self.meta["width"]),
+            coords = coordinates,
+            dims = ["thy", "thx", "energy"],
+        )
+
     
+    #def plot_kxky_slice(self, energy):
+
+
+
 def pol_correction(up, down, S=0.3, uncertainty=False):
 
-    up = unumpy.uarray(up, np.sqrt(up))
-    down = unumpy.uarray(down, np.sqrt(down))
+    up = unumpy.uarray(up, std_devs=np.sqrt(up))
+    down = unumpy.uarray(down, std_devs=np.sqrt(down))
 
 
-    P = 1/S * (up - down)/(up + down)
+    print(type(up))
+    P = 1/S * (up - down)/(up + down + 1e-20)
     pos_true = (1 + P) * (up + down)/2
     neg_true = (1 - P) * (up + down)/2
 
     if uncertainty:
         return pos_true, neg_true
-    return pos_true.n, neg_true.n
+    return unumpy.nominal_values(pos_true), unumpy.nominal_values(neg_true)
 
 
 def read_arpes_1D(file, data_dir=None):

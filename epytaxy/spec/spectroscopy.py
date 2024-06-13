@@ -396,7 +396,7 @@ class PolarTHz:
     Class that loads the angle-dependent THz emission of of a sample in positive and 
     negative magnetic field
     """
-    def __init__(self, data_dir_posB, data_dir_negB, angle_step, start_angle=0, sampleID=None, ftype=".dat"):
+    def __init__(self, data_dir_posB, data_dir_negB, angle_step, start_angle=0, sampleID=None, ftype=".dat", decimal="."):
         """
         Loading data here. Requires data for each magnetic field to be in separate folders, 
         and that the angle step for each measurement set is the same.
@@ -423,7 +423,7 @@ class PolarTHz:
         for idx, filepath in enumerate(pathlib.Path(data_dir_posB).glob(f"*{ftype}")):
             theta.append(int(start_angle + idx * angle_step + 0.5))
             file = os.path.basename(filepath)
-            posB_measure[f"{theta[idx]} deg"] = THz(file, data_dir=data_dir_posB)
+            posB_measure[f"{theta[idx]} deg"] = THz(file, data_dir=data_dir_posB, decimal=decimal)
         
         self.theta = np.array(theta)
         
@@ -431,7 +431,7 @@ class PolarTHz:
         negB_measure = {}
         for idx, filepath in enumerate(pathlib.Path(data_dir_negB).glob(f"*{ftype}")):
             file = os.path.basename(filepath)
-            negB_measure[f"{theta[idx]} deg"] = THz(file, data_dir=data_dir_negB)
+            negB_measure[f"{theta[idx]} deg"] = THz(file, data_dir=data_dir_negB, decimal=decimal)
 
         self.measurements = pd.DataFrame({"+B" : posB_measure, "-B" : negB_measure})
 

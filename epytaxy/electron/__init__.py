@@ -3,4 +3,5 @@ from epytaxy.electron.RHEED import (
     RHEEDOscillator,
     read_arpes_1D,
     pol_correction,
+    ARPESMap,
 )
