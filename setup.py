@@ -70,11 +70,11 @@ def get_version_info():
     FULLVERSION = VERSION
     if os.path.exists('.git'):
         GIT_REVISION = git_version()
-    elif os.path.exists('refnx/version.py'):
+    elif os.path.exists('epytaxy/version.py'):
         # must be a source distribution, use existing version file
         # load it as a separate module to not load refnx/__init__.py
         import imp
-        version = imp.load_source('refnx.version', 'refnx/version.py')
+        version = imp.load_source('epytaxy.version', 'epytaxy/version.py')
         GIT_REVISION = version.git_revision
     else:
         GIT_REVISION = "Unknown"
@@ -113,7 +113,7 @@ class PyTest(TestCommand):
 
     def initialize_options(self):
         TestCommand.initialize_options(self)
-        self.pytest_args = 'refnx'
+        self.pytest_args = 'epytaxy'
 
     def run_tests(self):
         import shlex

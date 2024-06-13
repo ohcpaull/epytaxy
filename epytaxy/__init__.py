@@ -1,4 +1,4 @@
-from .spm import AsylumDART, AsylumSF, plot_map
+from .spm import plot_map
 from .xray import ReciprocalSpaceMap
 from .neutron import TaipanNexus, basename_datafile, number_datafile, datafile_number
 

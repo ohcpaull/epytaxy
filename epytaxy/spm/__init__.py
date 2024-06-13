@@ -1,6 +1,4 @@
 from epytaxy.spm.scanningprobe import (
-    AsylumDART,
-    AsylumSF,
     Innova,
     convert_to_h5,
     load_files,
@@ -26,8 +24,4 @@ from epytaxy.spm.utils import (
     LineProfile,
     line_profile,
     plot_map,
-)
-
-from epytaxy.spm.igor_ibw import (
-    IgorIBWTranslator
 )
