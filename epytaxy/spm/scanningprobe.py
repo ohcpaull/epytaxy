@@ -4,7 +4,6 @@ import pyUSID as usid
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
-import pycroscopy as px
 from scipy.optimize import curve_fit
 import scipy
 from ipywidgets import interact 
