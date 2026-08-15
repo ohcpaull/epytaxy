@@ -10,6 +10,7 @@ from epytaxy.xray import RigakuFileRASX
 # mm
 XRR_BEAMWIDTH_SD = 0.019449
 
+
 def reduce_xray(f, bkg=None, scale=None, sample_length=None, clip=0):
     """
     Reduces a X-ray file. Current supported file formats are
@@ -37,11 +38,11 @@ def reduce_xray(f, bkg=None, scale=None, sample_length=None, clip=0):
     dataset: refnx.dataset.ReflectDataset
         The specular reflectivity as a function of momentum transfer, Q.
     """
-    if f.endswith('.xrdml'):
+    if f.endswith(".xrdml"):
         spec = parse_xrdml_file(f)
-    elif f.endswith('.ras'):
+    elif f.endswith(".ras"):
         spec = parse_ras_file(f)
-    elif f.endswith('.rasx'):
+    elif f.endswith(".rasx"):
         spec = parse_rasx_file(f)
 
     spec["intensities"] += 1
@@ -55,12 +56,9 @@ def reduce_xray(f, bkg=None, scale=None, sample_length=None, clip=0):
 
         bkgd_refs = np.r_[[bkgd["intensities"] for bkgd in bkgds]]
         bkgd_refs_s = np.r_[
-            [
-                np.sqrt(bkgd["intensities"]) / bkgd["count_time"]
-                for bkgd in bkgds
-            ]
+            [np.sqrt(bkgd["intensities"]) / bkgd["count_time"] for bkgd in bkgds]
         ]
-        bkgd_refs_var = bkgd_refs_s ** 2
+        bkgd_refs_var = bkgd_refs_s**2
         weights = 1.0 / bkgd_refs_var
         numerator = np.sum(bkgd_refs * weights, axis=0)
         denominator = np.sum(weights, axis=0)
@@ -85,9 +83,9 @@ def reduce_xray(f, bkg=None, scale=None, sample_length=None, clip=0):
         footprint_correction = general.beamfrac(
             np.array([XRR_BEAMWIDTH_SD]) * 2.35,
             np.array([sample_length]),
-            spec["twotheta"][clip:]/2,
+            spec["twotheta"][clip:] / 2,
         )
-        #print(footprint_correction)
+        # print(footprint_correction)
         reflectivity /= footprint_correction
         reflectivity_s /= footprint_correction
 
@@ -107,6 +105,7 @@ def reduce_xray(f, bkg=None, scale=None, sample_length=None, clip=0):
     d = ReflectDataset(data=(qz, reflectivity, reflectivity_s))
 
     return d
+
 
 def parse_rasx_file(f):
     """
@@ -131,17 +130,20 @@ def parse_rasx_file(f):
         'count_time' - float
             How long each point was counted for
         'wavelength' - float
-            Wavelength of X-ray radiation    
+            Wavelength of X-ray radiation
     """
     x = RigakuFileRASX(f)
     d = dict(
         intensities=x.scans[0].scan["intensity"] * x.scans[0].scan["attenuator"],
-        twotheta = x.scans[0].scan["TwoThetaOmega"],
-        omega = x.scans[0].scan["TwoThetaOmega"]/2,
-        count_time = 1 / x.scans[0].scan_information["speed"] * x.scans[0].scan_information["step"],
-        wavelength = x.scans[0].scan_information["wavelength"],
+        twotheta=x.scans[0].scan["TwoThetaOmega"],
+        omega=x.scans[0].scan["TwoThetaOmega"] / 2,
+        count_time=1
+        / x.scans[0].scan_information["speed"]
+        * x.scans[0].scan_information["step"],
+        wavelength=x.scans[0].scan_information["wavelength"],
     )
     return d
+
 
 def parse_ras_file(f):
     """
@@ -224,9 +226,7 @@ def parse_ras_file(f):
             if re_datastart.match(line):
                 lines = islice(fid, length)
                 data = np.genfromtxt(lines)
-                data = np.rec.fromrecords(
-                    data, names=[scan_axis, "int", "att"]
-                )
+                data = np.rec.fromrecords(data, names=[scan_axis, "int", "att"])
                 fid.seek(offset)
                 lines = islice(fid, length)
                 dlength = np.sum([len(line) for line in lines])
@@ -239,13 +239,14 @@ def parse_ras_file(f):
             init_mopo[keys[k]] = position[k]
         fid.seek(offset)
 
-    d["intensities"] = data["int"]*data["att"]
+    d["intensities"] = data["int"] * data["att"]
     d["twotheta"] = data["TwoThetaOmega"]
-    d["omega"] = [angle/2 for angle in data["TwoThetaOmega"]]
-    d["count_time"] = (1/meas_speed) * meas_step
+    d["omega"] = [angle / 2 for angle in data["TwoThetaOmega"]]
+    d["count_time"] = (1 / meas_speed) * meas_step
     d["wavelength"] = float(wavelength)
 
     return d
+
 
 def parse_xrdml_file(f):
     """
@@ -278,12 +279,9 @@ def parse_xrdml_file(f):
 
     query = {
         "intensities": ".//xrdml:intensities",
-        "twotheta_start": ".//xrdml:positions[@axis='2Theta']"
-        "/xrdml:startPosition",
-        "twotheta_end": ".//xrdml:positions[@axis='2Theta']"
-        "/xrdml:endPosition",
-        "omega_start": ".//xrdml:positions[@axis='Omega']"
-        "/xrdml:startPosition",
+        "twotheta_start": ".//xrdml:positions[@axis='2Theta']" "/xrdml:startPosition",
+        "twotheta_end": ".//xrdml:positions[@axis='2Theta']" "/xrdml:endPosition",
+        "omega_start": ".//xrdml:positions[@axis='Omega']" "/xrdml:startPosition",
         "omega_end": ".//xrdml:positions[@axis='Omega']" "/xrdml:endPosition",
         "cnt_time": ".//xrdml:commonCountingTime",
         "K-Alpha1": ".//xrdml:kAlpha1",
@@ -292,7 +290,6 @@ def parse_xrdml_file(f):
     }
 
     res = {key: root.find(value, ns).text for key, value in query.items()}
-
 
     kAlpha1 = float(res["K-Alpha1"])
     kAlpha2 = float(res["K-Alpha2"])
@@ -307,9 +304,7 @@ def parse_xrdml_file(f):
     d["twotheta"] = np.linspace(
         float(res["twotheta_start"]), float(res["twotheta_end"]), n_pnts
     )
-    d["omega"] = np.linspace(
-        float(res["omega_start"]), float(res["omega_end"]), n_pnts
-    )
+    d["omega"] = np.linspace(float(res["omega_start"]), float(res["omega_end"]), n_pnts)
     d["count_time"] = float(res["cnt_time"])
     d["wavelength"] = wavelength
 

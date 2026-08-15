@@ -7,45 +7,38 @@ In this version I graph the output as H K L parameters
 @author: oliver
 """
 
-import os #this deals with file directories
+import os  # this deals with file directories
 import io
-import xrayutilities as xu #this is the main package that is used
-import numpy as np #useful mathematics package
-import tkinter as tk #user interface for file IO
-from tkinter import filedialog #file dialogue from TKinter
-import matplotlib.pyplot as plt #plotting package
-import matplotlib as mpl #plotting
-from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+import xrayutilities as xu  # this is the main package that is used
+import numpy as np  # useful mathematics package
+import tkinter as tk  # user interface for file IO
+from tkinter import filedialog  # file dialogue from TKinter
+import matplotlib.pyplot as plt  # plotting package
+from matplotlib.colors import ListedColormap
 from matplotlib import rcParams, cm
-import refnx.util.general as general
-import refnx.util.ErrorProp as EP
 import xml.etree.ElementTree as et
-from refnx.dataset import ReflectDataset
-import re
-from itertools import islice
-import zipfile, io
+import zipfile
 import pandas as pd
 import datetime
 import imageio as imgio
 from distutils.util import strtobool
 
-
 # mm
 XRR_BEAMWIDTH_SD = 0.019449
 
-rcParams.update({'figure.autolayout': True})
+rcParams.update({"figure.autolayout": True})
 
 
 class ReciprocalSpaceMap:
     """
-    X-ray diffraction reciprocal space map. 
+    X-ray diffraction reciprocal space map.
 
     This class reads PANAlytical .xrdml files and Rigaku .ras files. When
-    constructing an instance of this object, one needs to know the reciprocal
-    lattice reflection that was measured, the in-plane and out-of-plane substrate
-    directions to construct the scattering plane, and the substrate material to
-    get expected RSM points to correct data for experimental omega and 2theta
-    offsets. 
+    constructing an instance of this object, one needs to know the
+    reciprocal lattice reflection that was measured, the in-plane and
+    out-of-plane substrate directions to construct the scattering plane, and
+    the substrate material to get expected RSM points to correct data for
+    experimental omega and 2theta offsets.
 
     Parameters
     ----------
@@ -55,11 +48,11 @@ class ReciprocalSpaceMap:
         Reciprocal lattice vector of the in-plane substrate direction that is also along
         the x-ray propagation direction.
     oop_hkl         :   3-tuple
-        Reciprocal lattice vector of the out-of-plane substrate normal direction. 
+        Reciprocal lattice vector of the out-of-plane substrate normal direction.
     substrate_mat   :   str, {"STO", "LAO", "LSAT", "YAO"}
         Abbreviation of substrate compound
     filepath        :   str, optional
-        Filepath for the reciprocal space map file. If None, this loads an empty 
+        Filepath for the reciprocal space map file. If None, this loads an empty
         ReciprocalSpaceMap that can be populated with the `self.load_sub`
         function.
 
@@ -72,9 +65,12 @@ class ReciprocalSpaceMap:
     Notes
     ----------
     Some substrates are orthorhombic, and as such the orthorhombic
-    reciprocal lattice vectors must be used. 
+    reciprocal lattice vectors must be used.
     """
-    def __init__(self, ref_hkl, ip_hkl, oop_hkl, substrate_mat, filepath=None, **kwargs):
+
+    def __init__(
+        self, ref_hkl, ip_hkl, oop_hkl, substrate_mat, filepath=None, **kwargs
+    ):
         # omega 2theta and data arrays. Omega and 2theta are 1D arrays while data is a 2D array with dimensions of omega and 2theta
         self.omega = []
         self.tt = []
@@ -89,7 +85,7 @@ class ReciprocalSpaceMap:
         self.iHKL = ip_hkl
         self.oHKL = oop_hkl
         self.h, self.k, self.l = 0, 0, 0
-        self.maxInt = 0   
+        self.maxInt = 0
         self.p = []
         self.substrateMat = substrate_mat
         self.rsmRef = ref_hkl
@@ -98,36 +94,41 @@ class ReciprocalSpaceMap:
         self.omega1D = []
         self._num_datasets = 0
 
-        
-        [self.substrate, self.hxrd] = self.initialise_substrate( wl='CuKa12', **kwargs )
+        [self.substrate, self.hxrd] = self.initialise_substrate(wl="CuKa12", **kwargs)
 
         if filepath:
-            self.load_sub( filepath, **kwargs)
+            self.load_sub(filepath, **kwargs)
 
-    def load_sub( self, filepath = None, delta=None, verbose=False, **kwargs):
+    def load_sub(self, filepath=None, delta=None, verbose=False, **kwargs):
 
         self.filepath = filepath
         if filepath is None:
-            self.filepath = self.open_dialogue()   # open GUI for user to select file 
-        b = self.filepath.index('.') # find the period that separates filename and extension
-        a = self.filepath.rfind('/')  # find the slash that separates the directory and filename
-        ext = self.filepath.split(".")[-1] # get extension and determine whether it is RAS or XRDML
-        self.filename = self.filepath[(a+1):(b)]
+            self.filepath = self.open_dialogue()  # open GUI for user to select file
+        b = self.filepath.index(
+            "."
+        )  # find the period that separates filename and extension
+        a = self.filepath.rfind(
+            "/"
+        )  # find the slash that separates the directory and filename
+        ext = self.filepath.split(".")[
+            -1
+        ]  # get extension and determine whether it is RAS or XRDML
+        self.filename = self.filepath[(a + 1) : (b)]
 
-        if ext == 'xrdml':
-            (omega, tt, data) = self.xrdml_file(self.filepath)
+        if ext == "xrdml":
+            omega, tt, data = self.xrdml_file(self.filepath)
             self.omega.append(omega)
             self.tt.append(tt)
             self.data.append(data)
             self.p, [qx, qy, qz] = self.align_sub_peak(delta=delta, verbose=verbose)
-        elif ext == 'ras':
-            (omega, tt, data) = self.ras_file(self.filepath)
+        elif ext == "ras":
+            omega, tt, data = self.ras_file(self.filepath)
             self.omega.append(omega)
             self.tt.append(tt)
             self.data.append(data)
             self.p, [qx, qy, qz] = self.align_sub_peak(delta=delta, verbose=verbose)
-        elif ext == 'rasx':
-            (x, y, z) = self.rasx_file(self.filepath)
+        elif ext == "rasx":
+            x, y, z = self.rasx_file(self.filepath)
             self.tt.append(y)
             self.omega.append(x)
             self.data.append(z)
@@ -142,15 +143,15 @@ class ReciprocalSpaceMap:
             qy = d["Qy"]
             qz = d["Qz"]
         else:
-            print('filetype not supported.') 
-        
+            print("filetype not supported.")
+
         self._update_q_ranges(qx, qy, qz)
         self.qx.append(qx)
         self.qy.append(qy)
         self.qz.append(qz)
         self._num_datasets += 1
 
-    def load_film( self, filepath=None, delta=None, verbose=False ):
+    def load_film(self, filepath=None, delta=None, verbose=False):
         """
         Load film RSM file separately from substrate
 
@@ -171,10 +172,10 @@ class ReciprocalSpaceMap:
         else:
             film_file = filepath
         if filepath.endswith(".xrdml"):
-            (f_omega, f_tt, f_data) = self.xrdml_file(film_file)
+            f_omega, f_tt, f_data = self.xrdml_file(film_file)
             qx, qy, qz = self.hxrd.Ang2Q(f_omega, f_tt, delta=delta)
         elif filepath.endswith(".ras"):
-            (f_omega, f_tt, f_data) = self.ras_file(film_file)
+            f_omega, f_tt, f_data = self.ras_file(film_file)
             qx, qy, qz = self.hxrd.Ang2Q(f_omega, f_tt, delta=delta)
         elif filepath.endswith("txt"):
             d = self.text_file(filepath)
@@ -185,7 +186,7 @@ class ReciprocalSpaceMap:
             qx = np.zeros(d["Qy"].shape)
             qy = d["Qy"]
             qz = d["Qz"]
-        
+
         print(f_omega.shape)
         print(f_tt.shape)
         print(f_data.shape)
@@ -200,7 +201,7 @@ class ReciprocalSpaceMap:
         self.qy.append(qy)
         self.qz.append(qz)
         self._num_datasets += 1
-        
+
         return f_omega, f_tt, f_data
 
     def xrdml_file(self, file):
@@ -215,17 +216,15 @@ class ReciprocalSpaceMap:
         d.pop("Omega")
 
         self.meta = d
-        #data = xrdtools.read_xrdml(file)
-        #om = data['Omega']
-        #tt = data['2Theta']
-        
-        #for key, val in data.items():
+        # data = xrdtools.read_xrdml(file)
+        # om = data['Omega']
+        # tt = data['2Theta']
+
+        # for key, val in data.items():
         #    if key in ["filename", "sample", "status", "comment", "substrate", "measType", "hkl", "time", "xunit", "yunit", "date"]:
         #        self.meta[key] = val
 
-        return (np.transpose(omega),
-                np.transpose(twotheta),
-                np.transpose(data))
+        return (np.transpose(omega), np.transpose(twotheta), np.transpose(data))
 
     def ras_file(self, file):
         # Read RAS data to object
@@ -233,32 +232,39 @@ class ReciprocalSpaceMap:
         self.file = rasFile
         self.scan_axis = rasFile.scans[1].scan_axis
         self.step_size = rasFile.scans[1].meas_step
-        self.measure_speed= rasFile.scans[1].meas_speed
+        self.measure_speed = rasFile.scans[1].meas_speed
         self.data_count = rasFile.scans[1].length
         time_per_step = self.data_count / self.measure_speed
         # Read raw motor position and intensity data to large 1D arrays
 
-        omttRaw, data = xu.io.getras_scan(rasFile.filename+'%s', '', self.scan_axis)
+        omttRaw, data = xu.io.getras_scan(rasFile.filename + "%s", "", self.scan_axis)
 
         counts = np.array(data["int"] * data["att"] / time_per_step)
 
         intensities = counts.reshape(len(rasFile.scans), rasFile.scan.length)
         # Read omega data from motor positions at the start of each 2theta-Omega scan
-        omga = [rasFile.scans[i].init_mopo['Omega'] for i in range(0, len(rasFile.scans))]
+        omga = [
+            rasFile.scans[i].init_mopo["Omega"] for i in range(0, len(rasFile.scans))
+        ]
         self.axis_raw.append(omttRaw)
         self.data_raw.append(data)
         # Convert 2theta-omega data to 1D array
         tt_1d = np.array([omttRaw[i] for i in range(0, rasFile.scans[0].length)])
 
-        if self.scan_axis == 'TwoThetaOmega' and self._num_datasets == 0: # If RSM is 2theta/omega vs omega scan, adjust omega values in 2D matrix
-            
-            omga = [[omga[i] + (n * self.step_size/2) for n in range(0,len(tt_1d))] for i in range(0,len(omga))]
-            tt = [[tt_1d[i] for i in range(0,len(tt_1d))] for j in range(0, len(omga))]
+        if (
+            self.scan_axis == "TwoThetaOmega" and self._num_datasets == 0
+        ):  # If RSM is 2theta/omega vs omega scan, adjust omega values in 2D matrix
+
+            omga = [
+                [omga[i] + (n * self.step_size / 2) for n in range(0, len(tt_1d))]
+                for i in range(0, len(omga))
+            ]
+            tt = [[tt_1d[i] for i in range(0, len(tt_1d))] for j in range(0, len(omga))]
         else:
             omga, tt = np.meshgrid(omga, tt_1d)
         tt = np.array(tt)
         om = np.array(omga)
-        
+
         return (np.transpose(om), np.transpose(tt), np.transpose(intensities))
 
     def rasx_file(self, file):
@@ -275,14 +281,24 @@ class ReciprocalSpaceMap:
 
         x = np.array([s.axes[step_axis].position for s in rasx_file.scans])
         y = rasx_file.scans[0].scan[rasx_file.scans[0].scan_information["axis"]]
-        counts = np.array([s.scan["intensity"] * s.scan["attenuator"] / time_per_step for s in rasx_file.scans])
+        counts = np.array(
+            [
+                s.scan["intensity"] * s.scan["attenuator"] / time_per_step
+                for s in rasx_file.scans
+            ]
+        )
         intensities = counts.reshape(len(rasx_file.scans), self.data_count)
         self.axis_raw.append(y)
 
-        if self.scan_axis == 'TwoThetaOmega' and self._num_datasets == 0: # If RSM is 2theta/omega vs omega scan, adjust omega values in 2D matrix
-            
-            x = [[x[i] + (n * self.step_size/2) for n in range(0,len(y))] for i in range(0,len(x))]
-            tt = [[y[i] for i in range(0,len(y))] for j in range(0, len(x))]
+        if (
+            self.scan_axis == "TwoThetaOmega" and self._num_datasets == 0
+        ):  # If RSM is 2theta/omega vs omega scan, adjust omega values in 2D matrix
+
+            x = [
+                [x[i] + (n * self.step_size / 2) for n in range(0, len(y))]
+                for i in range(0, len(x))
+            ]
+            tt = [[y[i] for i in range(0, len(y))] for j in range(0, len(x))]
         else:
             x, y = np.meshgrid(x, y)
 
@@ -291,32 +307,30 @@ class ReciprocalSpaceMap:
     def text_file(self, file):
         """
         Loads a ASCII 2D RSM file with Numpy.
-        
+
         Parameters
         ----------
-        txt_file : .txt file from rigaku 
-        
+        txt_file : .txt file from rigaku
+
         Output
         ----------
         (omega, tt, data) : 3-tuple of np.arrays
-            Three 2D arrays for the omega, two-theta, 
-            and intensity values of the reciprocal 
+            Three 2D arrays for the omega, two-theta,
+            and intensity values of the reciprocal
             space map measurement
         """
-        
+
         f = open(file, "r")
         lines = f.readlines()
-        
-        
+
         data = []
         axis1 = []
         axis2 = []
-        
 
         metadata = {}
         for line in lines[1:]:
             if "#" in line and ":" in line:
-                # If # and : is in the line then it is a header comment 
+                # If # and : is in the line then it is a header comment
                 key, val = line.split(":")
                 key = key.strip()
                 if len(val.split(" ")) > 2:
@@ -324,10 +338,10 @@ class ReciprocalSpaceMap:
                     # line, put them in an array
                     val = val.split(" ")
                     val = val[1:]
-                
+
                 metadata[key[2:]] = val
             else:
-                rel_om, tth, dat, _ =  line.split("\t")
+                rel_om, tth, dat, _ = line.split("\t")
                 om = float(rel_om) + float(metadata["gonio origin"][0])
                 axis1.append(float(om))
                 axis2.append(float(tth))
@@ -339,17 +353,44 @@ class ReciprocalSpaceMap:
         np_ax2 = np.array(axis2).reshape(tth_length, om_length)
         if "Chi" in metadata["axis type"][0]:
             # if True, then assume a 2D detector is used
-            np_qy = 2 * (2 * np.pi / 1.54) * np.sin(np.radians(np_ax2/2)) * np.sin(np.radians(np_ax1))
-            np_qz = 2 * (2 * np.pi / 1.54) * np.sin(np.radians(np_ax2/2)) * np.cos(np.radians(np_ax1))
+            np_qy = (
+                2
+                * (2 * np.pi / 1.54)
+                * np.sin(np.radians(np_ax2 / 2))
+                * np.sin(np.radians(np_ax1))
+            )
+            np_qz = (
+                2
+                * (2 * np.pi / 1.54)
+                * np.sin(np.radians(np_ax2 / 2))
+                * np.cos(np.radians(np_ax1))
+            )
         else:
-            np_qy = 2*np.pi/1.54 * (np.cos(np.radians(np_ax2 - np_ax1)) - np.cos(np.radians(np_ax1)))
-            np_qz = 2*np.pi/1.54 * (np.sin(np.radians(np_ax2 - np_ax1)) + np.sin(np.radians(np_ax1)))
-        
+            np_qy = (
+                2
+                * np.pi
+                / 1.54
+                * (np.cos(np.radians(np_ax2 - np_ax1)) - np.cos(np.radians(np_ax1)))
+            )
+            np_qz = (
+                2
+                * np.pi
+                / 1.54
+                * (np.sin(np.radians(np_ax2 - np_ax1)) + np.sin(np.radians(np_ax1)))
+            )
+
         np_data = np.array(data).reshape(tth_length, om_length)
-        d = {metadata["axis type"][0] : np_ax1, metadata["axis type"][1] : np_ax2, "Qy" : np_qy, "Qz" : np_qz, "Data" : np_data, "Metadata" : metadata}
+        d = {
+            metadata["axis type"][0]: np_ax1,
+            metadata["axis type"][1]: np_ax2,
+            "Qy": np_qy,
+            "Qz": np_qz,
+            "Data": np_data,
+            "Metadata": metadata,
+        }
 
         self.meta = d["Metadata"]
-                        
+
         return d
 
     def plot2d(self, ax=None, **kwargs):
@@ -358,30 +399,47 @@ class ReciprocalSpaceMap:
 
         om = np.array(self.omega)
         tt = np.array(self.tt)
-        if(om.ndim == 1 and tt.ndim == 1):
+        if om.ndim == 1 and tt.ndim == 1:
             om, tt = np.meshgrid(self.omega, self.tt)
-        elif (om.ndim != tt.ndim):
-            print('Error. omega and twotheta arrays must have same dimension. dim(omega) = ' \
-                  + str(om.shape) + 'and dim(tt) = ' + str(tt.shape))
-        '''    
+        elif om.ndim != tt.ndim:
+            print(
+                "Error. omega and twotheta arrays must have same dimension. dim(omega) = "
+                + str(om.shape)
+                + "and dim(tt) = "
+                + str(tt.shape)
+            )
+        """    
         if self.scan_axis == "TwoThetaOmega":
             om1D = np.ravel(om)
             tt1D = np.ravel(tt)
             dat1D = np.ravel(self.data)
             ax.scatter(om1D,tt1D,c=dat1D,cmap='jet')
-        '''    
+        """
 
         for i in range(self._num_datasets):
-            a = ax.contourf(self.omega[i],self.tt[i], np.log10(self.data[i]), **kwargs)
+            a = ax.contourf(self.omega[i], self.tt[i], np.log10(self.data[i]), **kwargs)
 
-        ax.set_xlabel(r'$\omega$')
-        ax.set_ylabel(r'2$\theta$-$\omega$')
+        ax.set_xlabel(r"$\omega$")
+        ax.set_ylabel(r"2$\theta$-$\omega$")
         fig.show()
         return ax
-    
-    def plotQ(self, xGrid, yGrid, dynLow, dynHigh, fig=None, ax=None, nlev = None, show_title=False, axlabels='hkl', in_plane=False, **kwargs):
+
+    def plotQ(
+        self,
+        xGrid,
+        yGrid,
+        dynLow,
+        dynHigh,
+        fig=None,
+        ax=None,
+        nlev=None,
+        show_title=False,
+        axlabels="hkl",
+        in_plane=False,
+        **kwargs,
+    ):
         """
-        Plots X-ray diffraction mesh scan in reciprocal space. 
+        Plots X-ray diffraction mesh scan in reciprocal space.
         First needs to nonlinearly regrid the angular data into reciprocal space
         and plot this.
 
@@ -401,22 +459,21 @@ class ReciprocalSpaceMap:
             fig, ax = plt.subplots()
 
         if show_title == True:
-            ax.set_title( self.filename )
+            ax.set_title(self.filename)
 
         if "cmap" not in kwargs.keys():
             # Generate new colormap for RSM display
-            rainbow = cm.get_cmap('magma_r', 256)
+            rainbow = cm.get_cmap("magma_r", 256)
             newcolors = rainbow(np.linspace(0, 1, 256))
             white = np.array([1, 1, 1, 1])
             newcolors[:20, :] = white
             kwargs["cmap"] = ListedColormap(newcolors)
-        
 
-        self.gridder = xu.Gridder2D(xGrid,yGrid)
+        self.gridder = xu.Gridder2D(xGrid, yGrid)
         self.gridder.KeepData(True)
         self.gridder.dataRange(
-            self._gridder_ymin, 
-            self._gridder_ymax, 
+            self._gridder_ymin,
+            self._gridder_ymax,
             self._gridder_zmin,
             self._gridder_zmax,
         )
@@ -426,52 +483,56 @@ class ReciprocalSpaceMap:
                 x = self.qy[d].ravel()
                 y = self.qx[d].ravel()
                 z = self.data[d].ravel()
-                self.gridder(x,y,z)
+                self.gridder(x, y, z)
         else:
             # If multiple datasets have been loaded, add each one to gridder
             for d in range(self._num_datasets):
                 x = self.qy[d].ravel()
                 y = self.qz[d].ravel()
                 z = self.data[d].ravel()
-                self.gridder(x,y,z)
-        
+                self.gridder(x, y, z)
+
         intHigh = np.argmax(self.gridder.data)
         intMin = np.argmin(self.gridder.data)
         dynhigh = np.rint(np.log10(intHigh))
 
-
-
         INT = xu.maplog(self.gridder.data, dynLow, dynHigh)
-        im = ax.contourf(self.gridder.xaxis, self.gridder.yaxis, np.transpose(INT), nlev, **kwargs)
+        im = ax.contourf(
+            self.gridder.xaxis, self.gridder.yaxis, np.transpose(INT), nlev, **kwargs
+        )
         for c in im.collections:
             c.set_edgecolor("face")
-        if axlabels == 'ipoop':
-            xlabel = '$q_{ip}$'
-            ylabel = '$q_{oop}$'
+        if axlabels == "ipoop":
+            xlabel = "$q_{ip}$"
+            ylabel = "$q_{oop}$"
             ax.set_xlabel(xlabel)
             ax.set_ylabel(ylabel)
         else:
-            xlabel = [ '\\bar{'+str(-i)+'}' if i < 0 else str(i) for i in self.iHKL ]
-            ylabel = [ '\\bar{'+str(-i)+'}' if i < 0 else str(i) for i in self.oHKL ]
-            ax.set_xlabel(r'$q_{[' + xlabel[0] + '' + xlabel[1] + '' + xlabel[2] + ']}$')
-            ax.set_ylabel(r'$q_{[' + ylabel[0] + '' + ylabel[1] + '' + ylabel[2] + ']}$')
-            ax.tick_params(axis='both', which='major')
-        
+            xlabel = ["\\bar{" + str(-i) + "}" if i < 0 else str(i) for i in self.iHKL]
+            ylabel = ["\\bar{" + str(-i) + "}" if i < 0 else str(i) for i in self.oHKL]
+            ax.set_xlabel(
+                r"$q_{[" + xlabel[0] + "" + xlabel[1] + "" + xlabel[2] + "]}$"
+            )
+            ax.set_ylabel(
+                r"$q_{[" + ylabel[0] + "" + ylabel[1] + "" + ylabel[2] + "]}$"
+            )
+            ax.tick_params(axis="both", which="major")
+
         return fig, ax
-        
+
     def find_nearest(self, array, value):
         array = np.asarray(array)
         idx = (np.abs(array - value)).argmin()
         return array[idx]
 
-    def initialise_substrate(self, geometry='hi_lo', **kwargs):
+    def initialise_substrate(self, geometry="hi_lo", **kwargs):
         La = xu.materials.elements.La
         Al = xu.materials.elements.Al
-        O =  xu.materials.elements.O2m
+        O = xu.materials.elements.O2m
         Sr = xu.materials.elements.Sr
         Ti = xu.materials.elements.Ti
         Ta = xu.materials.elements.Ta
-        Y =  xu.materials.elements.Y
+        Y = xu.materials.elements.Y
         Dy = xu.materials.elements.Dy
         Tb = xu.materials.elements.Tb
         Gd = xu.materials.elements.Gd
@@ -481,22 +542,31 @@ class ReciprocalSpaceMap:
         Li = xu.materials.elements.Li
         Nb = xu.materials.elements.Nb
 
-        energy = 1240/0.154
+        energy = 1240 / 0.154
 
         if self.substrateMat == "LAO":
             substrate = xu.materials.Crystal(
-                "LaAlO3", 
-                xu.materials.SGLattice(221, 3.784, atoms=[La, Al, O], pos=['1a', '1b', '3c'])
+                "LaAlO3",
+                xu.materials.SGLattice(
+                    221, 3.784, atoms=[La, Al, O], pos=["1a", "1b", "3c"]
+                ),
             )
         elif self.substrateMat == "STO":
             substrate = xu.materials.SrTiO3
-        elif self.substrateMat == "LSAT": # need to make an alloy of LaAlO3 and Sr2AlTaO6
+        elif (
+            self.substrateMat == "LSAT"
+        ):  # need to make an alloy of LaAlO3 and Sr2AlTaO6
             mat1 = xu.materials.Crystal(
-                "LaAlO3", xu.materials.SGLattice(221, 3.79, atoms=[La, Al, O], pos=['1a', '1b', '3c'])
+                "LaAlO3",
+                xu.materials.SGLattice(
+                    221, 3.79, atoms=[La, Al, O], pos=["1a", "1b", "3c"]
+                ),
             )
             mat2 = xu.materials.Crystal(
-                "Sr2AlTaO6", 
-                xu.materials.SGLattice(221, 3.898, atoms=[Sr, Al, Ta, O], pos=['8c', '4a', '4b', '24c'])
+                "Sr2AlTaO6",
+                xu.materials.SGLattice(
+                    221, 3.898, atoms=[Sr, Al, Ta, O], pos=["8c", "4a", "4b", "24c"]
+                ),
             )
             substrate = xu.materials.CubicAlloy(mat1, mat2, 0.71)
 
@@ -506,104 +576,172 @@ class ReciprocalSpaceMap:
                 when inputting measured RSM reflections."
             )
             substrate = xu.materials.Crystal(
-                "YAlO3", 
-                xu.materials.SGLattice(62, 5.18, 5.33, 7.37, atoms=[Y, Al, O], pos=['4c', '4b', '4c', '8d'])
+                "YAlO3",
+                xu.materials.SGLattice(
+                    62, 5.18, 5.33, 7.37, atoms=[Y, Al, O], pos=["4c", "4b", "4c", "8d"]
+                ),
             )
 
         elif self.substrateMat == "DSO":
             substrate = xu.materials.Crystal(
-                "DyScO3", 
-                xu.materials.SGLattice(62, 5.44, 5.717, 7.903, atoms=[Dy, Sc, O], pos=['4c', '4b', '4c', '8d'])
+                "DyScO3",
+                xu.materials.SGLattice(
+                    62,
+                    5.44,
+                    5.717,
+                    7.903,
+                    atoms=[Dy, Sc, O],
+                    pos=["4c", "4b", "4c", "8d"],
+                ),
             )
         elif self.substrateMat == "TSO":
             substrate = xu.materials.Crystal(
-                "TbScO3", 
-                xu.materials.SGLattice(62, 5.466, 5.731, 7.917, atoms=[Tb, Sc, O], pos=['4c', '4b', '4c', '8d'])
+                "TbScO3",
+                xu.materials.SGLattice(
+                    62,
+                    5.466,
+                    5.731,
+                    7.917,
+                    atoms=[Tb, Sc, O],
+                    pos=["4c", "4b", "4c", "8d"],
+                ),
             )
         elif self.substrateMat == "GSO":
             substrate = xu.materials.Crystal(
-                "GdScO3", 
-                xu.materials.SGLattice(62, 5.48, 5.746, 7.932, atoms=[Gd, Sc, O], pos=['4c', '4b', '4c', '8d'])
+                "GdScO3",
+                xu.materials.SGLattice(
+                    62,
+                    5.48,
+                    5.746,
+                    7.932,
+                    atoms=[Gd, Sc, O],
+                    pos=["4c", "4b", "4c", "8d"],
+                ),
             )
         elif self.substrateMat == "SSO":
             substrate = xu.materials.Crystal(
-                "SmScO3", 
-                xu.materials.SGLattice(62, 5.527, 5.758, 7.965, atoms=[Sm, Sc, O], pos=['4c', '4b', '4c', '8d'])
+                "SmScO3",
+                xu.materials.SGLattice(
+                    62,
+                    5.527,
+                    5.758,
+                    7.965,
+                    atoms=[Sm, Sc, O],
+                    pos=["4c", "4b", "4c", "8d"],
+                ),
             )
         elif self.substrateMat == "NSO":
             substrate = xu.materials.Crystal(
-                "NdScO3", 
-                xu.materials.SGLattice(62, 5.575, 5.776, 8.003, atoms=[Nd, Sc, O], pos=['4c', '4b', '4c', '8d'])
+                "NdScO3",
+                xu.materials.SGLattice(
+                    62,
+                    5.575,
+                    5.776,
+                    8.003,
+                    atoms=[Nd, Sc, O],
+                    pos=["4c", "4b", "4c", "8d"],
+                ),
             )
         elif self.substrateMat == "LNO":
             substrate = xu.materials.Crystal(
                 "LiNbO3",
-                xu.materials.SGLattice(161, 5.14829, 13.8631, atoms=[Li, Nb, O], pos=['6a', '6a', '18b'])
+                xu.materials.SGLattice(
+                    161, 5.14829, 13.8631, atoms=[Li, Nb, O], pos=["6a", "6a", "18b"]
+                ),
             )
         hxrd = xu.HXRD(
             substrate.Q(int(self.iHKL[0]), int(self.iHKL[1]), int(self.iHKL[2])),
-            substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])), 
-            en=energy, 
-            geometry = geometry, 
-            **kwargs
+            substrate.Q(int(self.oHKL[0]), int(self.oHKL[1]), int(self.oHKL[2])),
+            en=energy,
+            geometry=geometry,
+            **kwargs,
         )
         return [substrate, hxrd]
-    
+
     def align_sub_peak(self, frange=None, delta=None, verbose=False, **kwargs):
         nchannel = 255
-        chpdeg = nchannel/2.511 #2.511 degrees is angular acceptance of xrays to detector
+        chpdeg = (
+            nchannel / 2.511
+        )  # 2.511 degrees is angular acceptance of xrays to detector
         center_ch = 128
 
         indexMax = np.argmax(self.data)
         self.maxInt = indexMax
 
         data = np.array(self.data)
-        tupleIndex = np.unravel_index( indexMax, (len(self.data[0][:,0]), len(self.data[0][0,:])) )
-        
-        
-        [self.theoOm, dummy, dummy, self.theoTT] = self.hxrd.Q2Ang(self.substrate.Q(self.rsmRef))
-        exp_tt = self.tt[0][tupleIndex[0],tupleIndex[1]]
-        exp_om = self.omega[0][tupleIndex[0],tupleIndex[1]]
+        tupleIndex = np.unravel_index(
+            indexMax, (len(self.data[0][:, 0]), len(self.data[0][0, :]))
+        )
+
+        [self.theoOm, dummy, dummy, self.theoTT] = self.hxrd.Q2Ang(
+            self.substrate.Q(self.rsmRef)
+        )
+        exp_tt = self.tt[0][tupleIndex[0], tupleIndex[1]]
+        exp_om = self.omega[0][tupleIndex[0], tupleIndex[1]]
 
         plot = False
         if verbose:
             plot = True
 
         if frange:
-            exp_om, exp_tt, p, cov = xu.analysis.fit_bragg_peak( self.omega[0], self.tt[0], self.data[0], self.theoOm, self.theoTT, self.hxrd, plot=plot, frange=frange)
+            exp_om, exp_tt, p, cov = xu.analysis.fit_bragg_peak(
+                self.omega[0],
+                self.tt[0],
+                self.data[0],
+                self.theoOm,
+                self.theoTT,
+                self.hxrd,
+                plot=plot,
+                frange=frange,
+            )
         else:
-            exp_om, exp_tt, p, cov = xu.analysis.fit_bragg_peak( self.omega[0], self.tt[0], self.data[0], exp_om, exp_tt, self.hxrd, plot=plot)
+            exp_om, exp_tt, p, cov = xu.analysis.fit_bragg_peak(
+                self.omega[0],
+                self.tt[0],
+                self.data[0],
+                exp_om,
+                exp_tt,
+                self.hxrd,
+                plot=plot,
+            )
 
-        self.hxrd.Ang2Q.init_linear('y+', center_ch, nchannel, chpdeg=chpdeg) 
+        self.hxrd.Ang2Q.init_linear("y+", center_ch, nchannel, chpdeg=chpdeg)
 
         if delta is None:
             self.delta = (exp_om - self.theoOm, exp_tt - self.theoTT)
         else:
-             self.delta = delta
+            self.delta = delta
 
         if verbose:
-            print('experimental omega = ' + str(exp_om))
-            print('experimental tt = ' + str(exp_tt))
-            print('theoretical omega = ' + str(self.theoOm))
-            print('theoretical 2theta = ' + str(self.theoTT))
+            print("experimental omega = " + str(exp_om))
+            print("experimental tt = " + str(exp_tt))
+            print("theoretical omega = " + str(self.theoOm))
+            print("theoretical 2theta = " + str(self.theoTT))
 
-            print('delta = ' + str( self.delta ) )
+            print("delta = " + str(self.delta))
 
-        [qx, qy, qz] = self.hxrd.Ang2Q(self.omega[0], self.tt[0], delta=self.delta )
-        
+        [qx, qy, qz] = self.hxrd.Ang2Q(self.omega[0], self.tt[0], delta=self.delta)
+
         return p, [qx, qy, qz]
 
-    def fit_zoom_peak( self, angPlot, *kwargs ):
+    def fit_zoom_peak(self, angPlot, *kwargs):
 
-        yminInd =  ( np.abs(self.tt[:,0] - angPlot.get_ylim()[0]) ).argmin()
-        ymaxInd =  ( np.abs(self.tt[:,0] - angPlot.get_ylim()[1]) ).argmin()
-        xminInd =  ( np.abs(self.omega[0, :] - angPlot.get_xlim()[0]) ).argmin()
-        xmaxInd =  ( np.abs(self.omega[0, :] - angPlot.get_xlim()[1]) ).argmin() 
+        yminInd = (np.abs(self.tt[:, 0] - angPlot.get_ylim()[0])).argmin()
+        ymaxInd = (np.abs(self.tt[:, 0] - angPlot.get_ylim()[1])).argmin()
+        xminInd = (np.abs(self.omega[0, :] - angPlot.get_xlim()[0])).argmin()
+        xmaxInd = (np.abs(self.omega[0, :] - angPlot.get_xlim()[1])).argmin()
 
-        fitRange = [self.data[0, xminInd], self.data[0, xmaxInd], self.data[yminInd, 0], self.data[ymaxInd, 0]]
+        fitRange = [
+            self.data[0, xminInd],
+            self.data[0, xmaxInd],
+            self.data[yminInd, 0],
+            self.data[ymaxInd, 0],
+        ]
 
-        tupleIndex = np.unravel_index(np.argmax(self.data[yminInd:ymaxInd, xminInd:xmaxInd].flatten()), \
-                     (len(self.data[yminInd:ymaxInd, 0]), len(self.data[0, xminInd:xmaxInd])))
+        tupleIndex = np.unravel_index(
+            np.argmax(self.data[yminInd:ymaxInd, xminInd:xmaxInd].flatten()),
+            (len(self.data[yminInd:ymaxInd, 0]), len(self.data[0, xminInd:xmaxInd])),
+        )
 
         cropOm = self.omega[yminInd:ymaxInd, xminInd:xmaxInd]
         cropTT = self.tt[yminInd:ymaxInd, xminInd:xmaxInd]
@@ -618,39 +756,64 @@ class ReciprocalSpaceMap:
         background = 1
         self.p = [xC, yC, xSigma, ySigma, amp, background, angle]
 
-        fitRange = [self.omega[0,xminInd], self.omega[0,xmaxInd], self.tt[yminInd, 0], self.tt[ymaxInd, 0] ]
+        fitRange = [
+            self.omega[0, xminInd],
+            self.omega[0, xmaxInd],
+            self.tt[yminInd, 0],
+            self.tt[ymaxInd, 0],
+        ]
         print(fitRange)
 
-        fitParams, cov = xu.math.fit.fit_peak2d(self.omega[:,0], self.tt[:,0], self.data, self.p, fitRange, xu.math.Gauss2d)
-        
-        cl = angPlot.contour(self.omega[0,xminInd:xmaxInd], self.tt[yminInd:ymaxInd,0], \
-                 np.log10(xu.math.Gauss2d(self.omega[yminInd:ymaxInd, xminInd:xmaxInd], \
-                 self.tt[yminInd:ymaxInd,xminInd:xmaxInd], *fitParams)), 8, colors='k', linestyles='solid')
+        fitParams, cov = xu.math.fit.fit_peak2d(
+            self.omega[:, 0],
+            self.tt[:, 0],
+            self.data,
+            self.p,
+            fitRange,
+            xu.math.Gauss2d,
+        )
+
+        cl = angPlot.contour(
+            self.omega[0, xminInd:xmaxInd],
+            self.tt[yminInd:ymaxInd, 0],
+            np.log10(
+                xu.math.Gauss2d(
+                    self.omega[yminInd:ymaxInd, xminInd:xmaxInd],
+                    self.tt[yminInd:ymaxInd, xminInd:xmaxInd],
+                    *fitParams,
+                )
+            ),
+            8,
+            colors="k",
+            linestyles="solid",
+        )
 
         return cl, fitParams, cov
 
-    def fit_zoom_Qpeak( self, angPlot, verbose=False, *kwargs ):
+    def fit_zoom_Qpeak(self, angPlot, verbose=False, *kwargs):
 
-        yminInd =  ( np.abs(self.gridder.yaxis[:] - angPlot.get_ylim()[0]) ).argmin()
-        ymaxInd =  ( np.abs(self.gridder.yaxis[:] - angPlot.get_ylim()[1]) ).argmin()
-        xminInd =  ( np.abs(self.gridder.xaxis[:] - angPlot.get_xlim()[0]) ).argmin()
-        xmaxInd =  ( np.abs(self.gridder.xaxis[:] - angPlot.get_xlim()[1]) ).argmin() 
+        yminInd = (np.abs(self.gridder.yaxis[:] - angPlot.get_ylim()[0])).argmin()
+        ymaxInd = (np.abs(self.gridder.yaxis[:] - angPlot.get_ylim()[1])).argmin()
+        xminInd = (np.abs(self.gridder.xaxis[:] - angPlot.get_xlim()[0])).argmin()
+        xmaxInd = (np.abs(self.gridder.xaxis[:] - angPlot.get_xlim()[1])).argmin()
         crop_qy = self.gridder.xaxis[xminInd:xmaxInd]
         crop_qz = self.gridder.yaxis[yminInd:ymaxInd]
-        crop_data = self.gridder.data[xminInd:xmaxInd,yminInd:ymaxInd]
+        crop_data = self.gridder.data[xminInd:xmaxInd, yminInd:ymaxInd]
 
-        fitRange = [self.gridder.xaxis[xminInd], self.gridder.xaxis[xmaxInd], self.gridder.yaxis[yminInd], self.gridder.yaxis[ymaxInd]]
+        fitRange = [
+            self.gridder.xaxis[xminInd],
+            self.gridder.xaxis[xmaxInd],
+            self.gridder.yaxis[yminInd],
+            self.gridder.yaxis[ymaxInd],
+        ]
         print(fitRange)
 
-
         max_idx = np.unravel_index(
-            np.argmax(crop_data.flatten()),
-            shape=(len(crop_qy), len(crop_qz))
+            np.argmax(crop_data.flatten()), shape=(len(crop_qy), len(crop_qz))
         )
 
-
         crop_qy_mesh, crop_qz_mesh = np.meshgrid(crop_qy, crop_qz)
-        x_mesh, y_mesh = np.meshgrid( self.gridder.xaxis, self.gridder.yaxis)
+        x_mesh, y_mesh = np.meshgrid(self.gridder.xaxis, self.gridder.yaxis)
         xC = crop_qy[max_idx[0]]
         yC = crop_qz[max_idx[1]]
         amp = self.gridder.data[max_idx]
@@ -660,22 +823,24 @@ class ReciprocalSpaceMap:
         background = 1
         self.p = [xC, yC, xSigma, ySigma, amp, background, angle]
 
-        pfit, cov = xu.math.fit.fit_peak2d(x_mesh, y_mesh, self.gridder.data.T, self.p, fitRange, xu.math.Gauss2d)
+        pfit, cov = xu.math.fit.fit_peak2d(
+            x_mesh, y_mesh, self.gridder.data.T, self.p, fitRange, xu.math.Gauss2d
+        )
 
         if verbose:
-            print('------------- DEBUGGING -----------')
-            print('QxGrid size = ' + str(crop_qy_mesh.shape))
-            print('QzGrid size = ' + str(crop_qz_mesh.shape))
-            print('cropData size = ' + str(crop_data.shape))
-            print('fit params = ' + str(pfit))
-        
-        cl = angPlot.contour( 
-            self.gridder.xaxis, 
-            self.gridder.yaxis, 
-            xu.math.Gauss2d( x_mesh, y_mesh, *pfit), 
-            levels=8, 
-            colors='k', 
-            linestyles='solid'
+            print("------------- DEBUGGING -----------")
+            print("QxGrid size = " + str(crop_qy_mesh.shape))
+            print("QzGrid size = " + str(crop_qz_mesh.shape))
+            print("cropData size = " + str(crop_data.shape))
+            print("fit params = " + str(pfit))
+
+        cl = angPlot.contour(
+            self.gridder.xaxis,
+            self.gridder.yaxis,
+            xu.math.Gauss2d(x_mesh, y_mesh, *pfit),
+            levels=8,
+            colors="k",
+            linestyles="solid",
         )
 
         return cl, pfit, cov
@@ -688,7 +853,7 @@ class ReciprocalSpaceMap:
 
         Parameters
         ----------
-        qx  :   
+        qx  :
         """
 
         xmin = min(qx.flatten())
@@ -731,17 +896,13 @@ class ReciprocalSpaceMap:
         if fname is None:
             fname = self.filename + "_CSVoutput.csv"
 
-        tmp = np.array(
-            [self.omega.flatten(), 
-            self.tt.flatten(), 
-            self.data.flatten()]
-            )
-        np.savetxt(fname, tmp, delimiter=',')
+        tmp = np.array([self.omega.flatten(), self.tt.flatten(), self.data.flatten()])
+        np.savetxt(fname, tmp, delimiter=",")
 
 
 class BRMLFile:
     """
-    Bruker D8 .brml file reader for 1-dimensional 2theta-omega x-ray data. 
+    Bruker D8 .brml file reader for 1-dimensional 2theta-omega x-ray data.
 
 
     Parameters
@@ -752,8 +913,8 @@ class BRMLFile:
 
     def __init__(self, file_name):
         self.scan_axes = {}
-        
-        with zipfile.ZipFile(file_name, 'r') as zip_ref:
+
+        with zipfile.ZipFile(file_name, "r") as zip_ref:
             zip_ref.printdir()
             c = zip_ref.read("Experiment0/RawData0.xml")
 
@@ -766,39 +927,50 @@ class BRMLFile:
     def parse_scan(self, xml_file):
         root = et.fromstring(xml_file)
 
-        ns = {'brml': "http://www.w3.org/2001/XMLSchema",
-                  'fixed' : "http://www.w3.org/2001/XMLSchema-instance"}
+        ns = {
+            "brml": "http://www.w3.org/2001/XMLSchema",
+            "fixed": "http://www.w3.org/2001/XMLSchema-instance",
+        }
 
         query = {
-            "start_time" : "TimeStampStarted",
-            "end_time" : "TimeStampEnded",
+            "start_time": "TimeStampStarted",
+            "end_time": "TimeStampEnded",
             "intensities": "DataRoutes/DataRoute/Datum",
-            "twotheta_start" : "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@AxisId='TwoTheta']/Start",
-            "twotheta_end" : "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@VisibleName='2Theta']/Stop",
+            "twotheta_start": "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@AxisId='TwoTheta']/Start",
+            "twotheta_end": "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@VisibleName='2Theta']/Stop",
             "twotheta_incr": "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@VisibleName='2Theta']/Increment",
-            "omega_start" : "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@VisibleName='Omega']/Start",
-            "omega_end" : "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@VisibleName='Omega']/Stop",
+            "omega_start": "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@VisibleName='Omega']/Start",
+            "omega_end": "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@VisibleName='Omega']/Stop",
             "omega_incr": "DataRoutes/DataRoute/ScanInformation/ScanAxes/ScanAxisInfo[@VisibleName='Omega']/Increment",
         }
-            
-        scanp = {key: [i.text for i in root.findall(value, ns)] for key, value in query.items()}
 
-        two_theta = np.array([float(point.split(",")[2]) for point in scanp["intensities"]])
+        scanp = {
+            key: [i.text for i in root.findall(value, ns)]
+            for key, value in query.items()
+        }
+
+        two_theta = np.array(
+            [float(point.split(",")[2]) for point in scanp["intensities"]]
+        )
         omega = np.array([float(point.split(",")[3]) for point in scanp["intensities"]])
-        counts = np.array([float(point.split(",")[-1]) for point in scanp["intensities"]])
+        counts = np.array(
+            [float(point.split(",")[-1]) for point in scanp["intensities"]]
+        )
         scanp.pop("intensities")
-        scanp.update({
-            "two_theta" : two_theta,
-            "omega" : omega,
-            "counts" : counts,
-        })
+        scanp.update(
+            {
+                "two_theta": two_theta,
+                "omega": omega,
+                "counts": counts,
+            }
+        )
 
         fixp = {}
         for item in root.findall("FixedInformation/Drives/"):
             motor_name = item.get("LogicName")
             position = item.find("Position")
             pos_val = position.get("Value")
-            fixp.update({motor_name : pos_val})
+            fixp.update({motor_name: pos_val})
 
         return scanp, fixp
 
@@ -807,41 +979,43 @@ class RigakuAxis:
     """
     Axis information in Rigaku .rasx files
     """
+
     def __init__(self, parameters):
-        
+
         self.name = parameters["Name"]
         self.unit = parameters["Unit"]
         self.offset = float(parameters["Offset"])
         self.position = float(parameters["Position"])
         self.state = parameters["State"]
         self.resolution = float(parameters["Resolution"])
-    
+
     def __repr__(self):
         return f"RigakuAxis(name : {self.name}, position : {self.position}, state : {self.state})"
-    
+
     def __str__(self):
-        return ( 
+        return (
             "## Axis parameters:\n"
             f"Name: {self.name}\n"
             f"Position : {self.position}\n"
             f"Mode : {self.state}\n"
         )
-    
+
     def to_dict(self):
         return {
-            'name' : self.name, 
-            'unit' : self.unit, 
-            'offset' : self.offset, 
-            'position' : self.position, 
-            'state' : self.state, 
-            'resolution' : self.resolution
+            "name": self.name,
+            "unit": self.unit,
+            "offset": self.offset,
+            "position": self.position,
+            "state": self.state,
+            "resolution": self.resolution,
         }
-    
+
 
 class RigakuHardware:
     """
     Hardware information in Rigaku .rasx files
     """
+
     def __init__(self, parameters):
         self.goniometer = parameters["gonio"]["SelectedUnit"]
         self.attachment_head = parameters["head"]["SelectedUnit"]
@@ -855,22 +1029,22 @@ class RigakuHardware:
 
     def to_dict(self):
         return {
-            'goniometer' : self.goniometer, 
-            'attachment_head' : self.attachment_head, 
-            'attachment_stage' : self.attachment_stage,
-            'detector' : self.detector,
-            'detector_mono' : self.detector_mono,
-            'receiving_atten' : self.receiving_atten
+            "goniometer": self.goniometer,
+            "attachment_head": self.attachment_head,
+            "attachment_stage": self.attachment_stage,
+            "detector": self.detector,
+            "detector_mono": self.detector_mono,
+            "receiving_atten": self.receiving_atten,
         }
 
 
 class RigakuFileRASX:
     """
-    Represents a Rigaku .rasx X-ray diffraction file. There can 
+    Represents a Rigaku .rasx X-ray diffraction file. There can
     be multiple scans per file, and different scan axes in each
-    scan. 
+    scan.
 
-    Map files contain an image of the sample and a set of 
+    Map files contain an image of the sample and a set of
     sampling points, but the scans for each point need to be loaded
     separately using `RigakuFileRASX.load_map_scans`. Be warned that
     once this is done, the scans will not be in `RigakuFileRASX.scans`
@@ -892,12 +1066,13 @@ class RigakuFileRASX:
         dictionary contains data related to where different data
         is held within the .rasx file
     scans : list
-        List of RigakuScanRASX objects that hold the scan data and 
-        scan metadata information (such as axis positions and 
+        List of RigakuScanRASX objects that hold the scan data and
+        scan metadata information (such as axis positions and
         hardware information)
     """
+
     def __init__(self, filename, data_directory="."):
-        #print(type(filename))
+        # print(type(filename))
 
         self.data_directory = data_directory
         self.scan_metadata = []
@@ -910,16 +1085,15 @@ class RigakuFileRASX:
         elif isinstance(filename, str):
             self.file_path = os.path.join(data_directory, filename)
             zipf = zipfile.ZipFile(self.file_path)
-            
+
         else:
-            #zipf = zipfile.ZipFile(filename)
+            # zipf = zipfile.ZipFile(filename)
             raise TypeError(f"File is {type(filename)}")
 
-        root = et.parse(io.BytesIO(zipf.read("root.xml"))).getroot()       
+        root = et.parse(io.BytesIO(zipf.read("root.xml"))).getroot()
         res = root.find("Data0")
         if res is None:
             raise ValueError("No data inside rasx file!")
-        
 
         # If Data0 type is SampleImage, make a map object
         if res.attrib["Type"] == "SampleImage":
@@ -927,15 +1101,12 @@ class RigakuFileRASX:
             map_name = f[0].attrib["Name"]
             container = res.tag
             config_name = None
-            self.map_metadata = (dict(
-                container=container,
-                scan_name=map_name,
-                config_name=config_name
-            ))
+            self.map_metadata = dict(
+                container=container, scan_name=map_name, config_name=config_name
+            )
             self.map = RigakuMapRASX(self.file_path, self.map_metadata)
 
-
-        # If Data0 type is Profile, data is either a single (or multiple) 
+        # If Data0 type is Profile, data is either a single (or multiple)
         # individual scans or a reciprocal space map
         elif res.attrib["Type"] == "Profile":
             self.scans = []
@@ -948,18 +1119,20 @@ class RigakuFileRASX:
                 f = res.findall("ContentHashList")
                 scan_name = f[0].attrib["Name"]
                 hardware_name = f[1].attrib["Name"]
-                self.scan_metadata.append(dict(
-                    container = res.tag,
-                    scan_name = scan_name,
-                    config_name = hardware_name
-                ))
+                self.scan_metadata.append(
+                    dict(
+                        container=res.tag,
+                        scan_name=scan_name,
+                        config_name=hardware_name,
+                    )
+                )
                 self.scans.append(RigakuScanRASX(self.file_path, self.scan_metadata[i]))
                 i += 1
 
             # If datatype is a reciprocal space map, take associated metadata
-            if self.scans[0].metadata["data_type"] == 'RAS_3DE_RSM':
+            if self.scans[0].metadata["data_type"] == "RAS_3DE_RSM":
                 self.rsm_metadata = self.scans[0].rsm_metadata
-               
+
     def __str__(self):
         table = pd.DataFrame(columns=["Scan #", "Comment", "Scan Axis"])
         for idx, sc in enumerate(self.scans):
@@ -969,7 +1142,7 @@ class RigakuFileRASX:
             table.at[idx, "Comment"] = comment
             table.at[idx, "Scan Axis"] = scaxis
         print(f"Rigaku RASX File: {os.path.basename(self.file_path)}")
-              
+
         return table.to_markdown()
 
     def load_map_scans(self, data_directory="."):
@@ -980,7 +1153,7 @@ class RigakuFileRASX:
         Important: This function assumes there is a folder
         which ONLY contains all the scan files in the map.
 
-        TODO: Need to make this more general in case there 
+        TODO: Need to make this more general in case there
         are multiple scans within a single .rasx file.
 
         Parameters
@@ -1000,17 +1173,17 @@ class RigakuFileRASX:
             f = res.findall("ContentHashList")
             scan_name = f[0].attrib["Name"]
             hardware_name = f[1].attrib["Name"]
-            self.scan_metadata.append(dict(
-                container = res.tag,
-                scan_name = scan_name,
-                config_name = hardware_name
-            ))
-            scan = RigakuScanRASX(os.path.join(data_directory, fname), self.scan_metadata[idx])
+            self.scan_metadata.append(
+                dict(container=res.tag, scan_name=scan_name, config_name=hardware_name)
+            )
+            scan = RigakuScanRASX(
+                os.path.join(data_directory, fname), self.scan_metadata[idx]
+            )
             x = scan.axes["X"].position
             y = scan.axes["Y"].position
 
             for point in self.map.sampling_points:
-                if point["x_pos"] == x  and point["y_pos"] == y:
+                if point["x_pos"] == x and point["y_pos"] == y:
                     point["scan"] = scan
                     point["masked"] = False
 
@@ -1019,11 +1192,16 @@ class RigakuFileRASX:
         scan = self.scans[scan_num]
         x = scan.x()
         y = scan.y()
-       
+
         fig, ax = plt.subplots()
         ax.plot(x, y)
-        ax.set(ylabel="Intensity (a.u.)", xlabel=f"{scan.scan_information['axis']}", yscale=scale, **kwargs)
-        
+        ax.set(
+            ylabel="Intensity (a.u.)",
+            xlabel=f"{scan.scan_information['axis']}",
+            yscale=scale,
+            **kwargs,
+        )
+
         CuKalpha1_pos = 0
         CuKalpha2_pos = 0
         CuKbeta_pos = 0
@@ -1051,43 +1229,35 @@ class RigakuFileRASX:
             WL_alpha2 = 1.487477
 
             position_x = event.xdata
-            
-
 
             # theta = np.arcsin(lambda/2d)
             # d = lambda/2sin(theta)
             if isinstance(position_x, float):
-                d = CuK_alpha1 / (2 * np.sin(np.radians(position_x/2)))
-                x_CuKalpha2 = np.degrees(np.arcsin(CuK_alpha2/(2 * d)))
-                x_beta = np.degrees(np.arcsin(CuK_beta/(2*d)))
-                x_WLalpha1 = np.degrees(np.arcsin(WL_alpha1/(2*d)))
-                x_WLalpha2 = np.degrees(np.arcsin(WL_alpha2/(2*d)))
-
-                
+                d = CuK_alpha1 / (2 * np.sin(np.radians(position_x / 2)))
+                x_CuKalpha2 = np.degrees(np.arcsin(CuK_alpha2 / (2 * d)))
+                x_beta = np.degrees(np.arcsin(CuK_beta / (2 * d)))
+                x_WLalpha1 = np.degrees(np.arcsin(WL_alpha1 / (2 * d)))
+                x_WLalpha2 = np.degrees(np.arcsin(WL_alpha2 / (2 * d)))
 
                 CuKalpha1_line.set_xdata(position_x)
                 text_CuKalpha1.set_position((position_x, ymax[1]))
 
                 CuKalpha2_line.set_xdata(x_CuKalpha2 * 2)
-                text_CuKalpha2.set_position((x_CuKalpha2*2, ymax[1]*0.7))
+                text_CuKalpha2.set_position((x_CuKalpha2 * 2, ymax[1] * 0.7))
 
                 beta_line.set_xdata(x_beta * 2)
-                text_CuKbeta.set_position((x_beta*2, ymax[1]))
+                text_CuKbeta.set_position((x_beta * 2, ymax[1]))
 
-                WLalpha1_line.set_xdata(x_WLalpha1*2)
-                text_WLalpha1.set_position((x_WLalpha1*2, ymax[1]*0.7))
+                WLalpha1_line.set_xdata(x_WLalpha1 * 2)
+                text_WLalpha1.set_position((x_WLalpha1 * 2, ymax[1] * 0.7))
 
-                WLalpha2_line.set_xdata(x_WLalpha2*2)
-                text_WLalpha2.set_position((x_WLalpha2*2, ymax[1]))
+                WLalpha2_line.set_xdata(x_WLalpha2 * 2)
+                text_WLalpha2.set_position((x_WLalpha2 * 2, ymax[1]))
 
-
-
-            fig.canvas.draw() 
+            fig.canvas.draw()
             fig.canvas.flush_events()
 
-
-        
-        plt.connect('motion_notify_event', on_move_x)
+        plt.connect("motion_notify_event", on_move_x)
         plt.show()
 
         return fig, ax
@@ -1099,32 +1269,32 @@ class RigakuMapRASX:
 
         scan = zipf.read(f"{metadata['container']}/{metadata['scan_name']}")
 
-        ns = {"rasx" : "http://www.w3.org/2001/XMLSchema"}
+        ns = {"rasx": "http://www.w3.org/2001/XMLSchema"}
         tree = et.parse(io.BytesIO(scan))
         root = tree.getroot()
 
         self.map_information = self._get_map_metadata(root)
         self.sampling_points = self._get_sampling_points(root)
         self.image = imgio.imread(zipf.read(f"{metadata['container']}/Image0.png"))
-        
+
     def _get_map_metadata(self, root):
         map_query = {
-            "date" : ".//Date",
-            "x_pixel_size" : ".//PixelSizeXmm",
-            "y_pixel_size" : ".//PixelSizeYmm",
-            "center_x" : ".//CenterX",
-            "center_y" : ".//CenterY",
-            "center_x_px" : ".//CenterXInPixels",
-            "center_y_px" : ".//CenterYInPixels",
-            "center_x_offset_px" : ".//CenterXOffsetInPixels",
-            "center_y_offset_px" : ".//CenterYOffsetInPixels",
-            "lens_ratio" : ".//LensRatio",
-            "index" : ".//Index",
-            "brightness" : ".//Brightness"
+            "date": ".//Date",
+            "x_pixel_size": ".//PixelSizeXmm",
+            "y_pixel_size": ".//PixelSizeYmm",
+            "center_x": ".//CenterX",
+            "center_y": ".//CenterY",
+            "center_x_px": ".//CenterXInPixels",
+            "center_y_px": ".//CenterYInPixels",
+            "center_x_offset_px": ".//CenterXOffsetInPixels",
+            "center_y_offset_px": ".//CenterYOffsetInPixels",
+            "lens_ratio": ".//LensRatio",
+            "index": ".//Index",
+            "brightness": ".//Brightness",
         }
-        scan_info = {key : root.find(value).text for key, value in map_query.items()}
+        scan_info = {key: root.find(value).text for key, value in map_query.items()}
 
-        scan_info["date"] = str(scan_info["date"])# , '%Y-%m-%dT%H:%M:%S.%f%z')
+        scan_info["date"] = str(scan_info["date"])  # , '%Y-%m-%dT%H:%M:%S.%f%z')
         scan_info["x_pixel_size"] = float(scan_info["x_pixel_size"])
         scan_info["y_pixel_size"] = float(scan_info["y_pixel_size"])
         scan_info["center_x"] = float(scan_info["center_x"])
@@ -1142,36 +1312,41 @@ class RigakuMapRASX:
     def _get_sampling_points(self, root):
         d = []
         dtype = dict(
-            x_pos = float,
-            y_pos = float,
-            z_pos = float,
-            executed = strtobool,
-            phi_pos = float,
-            comment = str,
-            order = int
+            x_pos=float,
+            y_pos=float,
+            z_pos=float,
+            executed=strtobool,
+            phi_pos=float,
+            comment=str,
+            order=int,
         )
         sampling_points = root.find(".//SamplingPoints")
 
         sampling_query = {
-            "x_pos" : ".//Xmm",
-            "y_pos" : ".//Ymm",
-            "z_pos" : ".//Zmm",
-            "executed" : ".//IsExecute",
-            "phi_pos" : ".//Phi",
-            "comment" : ".//Comment",
-            "order" : ".//OrderInList",
+            "x_pos": ".//Xmm",
+            "y_pos": ".//Ymm",
+            "z_pos": ".//Zmm",
+            "executed": ".//IsExecute",
+            "phi_pos": ".//Phi",
+            "comment": ".//Comment",
+            "order": ".//OrderInList",
         }
 
         for idx, sample in enumerate(sampling_points):
-            d.append({key : dtype[key](sample.find(value).text) for key, value in sampling_query.items()})
+            d.append(
+                {
+                    key: dtype[key](sample.find(value).text)
+                    for key, value in sampling_query.items()
+                }
+            )
             d[idx]["masked"] = True
 
         return d
-    
+
     def plot_over_image(self, key=None, ax=None, **kwargs):
         """
-        Plots a contourf map over the image of the sample that has been mapped. 
-        Once you have loaded your scan data into the map, you can analyse each 
+        Plots a contourf map over the image of the sample that has been mapped.
+        Once you have loaded your scan data into the map, you can analyse each
         scan to obtain some sort of parameter (max intensity, peak position, etc.)
         through simple analysis and add it to the `sampling_points` list of dictionaries.
 
@@ -1197,32 +1372,79 @@ class RigakuMapRASX:
             fig, ax = plt.subplots()
         xpts = np.array([point["x_pos"] for point in self.sampling_points])
         ypts = np.array([point["y_pos"] for point in self.sampling_points])
-        xmin = self.map_information['center_x'] - (self.map_information['center_x_px'] - self.map_information['center_x_offset_px']) * self.map_information['x_pixel_size'] 
-        ymin = self.map_information['center_y'] - (self.map_information['center_y_px'] - self.map_information['center_y_offset_px']) * self.map_information['y_pixel_size'] 
-        xmax = self.map_information['center_x'] + (self.map_information['center_x_px'] - self.map_information['center_x_offset_px']) * self.map_information['x_pixel_size'] 
-        ymax = self.map_information['center_y'] + (self.map_information['center_y_px'] - self.map_information['center_y_offset_px']) * self.map_information['y_pixel_size'] 
+        xmin = (
+            self.map_information["center_x"]
+            - (
+                self.map_information["center_x_px"]
+                - self.map_information["center_x_offset_px"]
+            )
+            * self.map_information["x_pixel_size"]
+        )
+        ymin = (
+            self.map_information["center_y"]
+            - (
+                self.map_information["center_y_px"]
+                - self.map_information["center_y_offset_px"]
+            )
+            * self.map_information["y_pixel_size"]
+        )
+        xmax = (
+            self.map_information["center_x"]
+            + (
+                self.map_information["center_x_px"]
+                - self.map_information["center_x_offset_px"]
+            )
+            * self.map_information["x_pixel_size"]
+        )
+        ymax = (
+            self.map_information["center_y"]
+            + (
+                self.map_information["center_y_px"]
+                - self.map_information["center_y_offset_px"]
+            )
+            * self.map_information["y_pixel_size"]
+        )
 
-        masked = np.ma.array([point["masked"] for point in self.sampling_points]).reshape(len(np.unique(ypts)), len(np.unique(xpts)))
+        masked = np.ma.array(
+            [point["masked"] for point in self.sampling_points]
+        ).reshape(len(np.unique(ypts)), len(np.unique(xpts)))
 
         ax.imshow(self.image, extent=[xmin, xmax, ymin, ymax])
         ax.set(xlabel="X (mm)", ylabel="Y (mm)")
 
         if key:
-            xpts_valid = np.array([point["x_pos"] for point in self.sampling_points if "max_int" in point.keys()])
-            ypts_valid = np.array([point["y_pos"] for point in self.sampling_points if "max_int" in point.keys()])
-            z = np.ma.array([point[key] for point in self.sampling_points]).reshape(len(np.unique(ypts)), len(np.unique(xpts)))
-            self.masked_map = dict(x=np.unique(xpts_valid), y=np.unique(ypts_valid), z=z)
+            xpts_valid = np.array(
+                [
+                    point["x_pos"]
+                    for point in self.sampling_points
+                    if "max_int" in point.keys()
+                ]
+            )
+            ypts_valid = np.array(
+                [
+                    point["y_pos"]
+                    for point in self.sampling_points
+                    if "max_int" in point.keys()
+                ]
+            )
+            z = np.ma.array([point[key] for point in self.sampling_points]).reshape(
+                len(np.unique(ypts)), len(np.unique(xpts))
+            )
+            self.masked_map = dict(
+                x=np.unique(xpts_valid), y=np.unique(ypts_valid), z=z
+            )
             im = ax.contourf(np.unique(xpts), np.unique(ypts), z, **kwargs)
         else:
             im = ax.scatter(xpts, ypts)
         return im, ax
-        
+
+
 class RigakuScanRASX:
     """
     Reads the new format of Rigaku XRD files - "RASX". These files are zipped
-    and contain a .xml file with hardware-related information, as well as a 
+    and contain a .xml file with hardware-related information, as well as a
     .txt file with the scan data. This class reads the hardware-related information
-    to 
+    to
 
     Parameters
     ----------
@@ -1244,104 +1466,114 @@ class RigakuScanRASX:
     scan_information : dict
         Information about the scan, such as:
             - axis           : str, Name of the scan axis
-            - mode           : 
+            - mode           :
             - start_angle    : float, Angle of scan axis at start of measurement
             - end_angle      : float, Angle of scan axis at end of measurement
             - step           : float, Step angle between adjacent datapoints in measurement
-            - resolution     : 
+            - resolution     :
             - speed          : float, Speed of scan
             - speed_unit     : str, Units of scan speed (typically degrees/minute)
             - axis_unit      : str, Units of scan axis (typically degrees)
             - intensity_unit : str, Units of intensity (typically cts/sec)
             - start time     : datetime.datetime.strptime, Date and time at start of measurement
             - end_time       : datetime.datetime.strptime, Date and time at end of measurement
-    
+
     hardware : RigakuHardware
 
     scan : dict
-        scan axis : axis data for 
+        scan axis : axis data for
 
     """
+
     def __init__(self, filename, metadata):
         zipf = zipfile.ZipFile(filename)
 
         scan = zipf.read(f"{metadata['container']}/{metadata['scan_name']}")
         hardware = zipf.read(f"{metadata['container']}/{metadata['config_name']}")
-        
-        ns = {"rasx" : "http://www.w3.org/2001/XMLSchema"}
+
+        ns = {"rasx": "http://www.w3.org/2001/XMLSchema"}
         tree = et.parse(io.BytesIO(hardware))
         root = tree.getroot()
-        
+
         self.metadata = self._get_scan_metadata(root)
-        if self.metadata["data_type"] == 'RAS_3DE_RSM':
+        if self.metadata["data_type"] == "RAS_3DE_RSM":
             self.rsm_metadata = self._get_RSM_metadata(root)
-        
+
         self.scan_information = self._get_scan_information(root)
         self.hardware = self._get_hardware_information(root)
-        
+
         axesdict = self._get_axis_information(root)
         self.axes = {}
         for key in axesdict.keys():
             self.axes[key] = RigakuAxis(axesdict[key])
-            
-        data = pd.read_csv(io.BytesIO(scan), delimiter="\t", names=[self.scan_information["axis"], "intensity", "att"])
+
+        data = pd.read_csv(
+            io.BytesIO(scan),
+            delimiter="\t",
+            names=[self.scan_information["axis"], "intensity", "att"],
+        )
         self.scan = {
-            self.scan_information["axis"] : data[self.scan_information["axis"]],
-            "intensity" : data["intensity"],
-            "attenuator" : data["att"]
+            self.scan_information["axis"]: data[self.scan_information["axis"]],
+            "intensity": data["intensity"],
+            "attenuator": data["att"],
         }
 
     def _get_axis_information(self, root):
         axis_query = {
-            "Omega" : ".//*Axis[@Name='Omega']",
-            "TwoTheta" :  ".//*Axis[@Name='TwoTheta']",
-            "TwoThetaTheta" : ".//*Axis[@Name='TwoThetaTheta']",
-            "TwoThetaOmega" : ".//*Axis[@Name='TwoThetaOmega']",
-            "TwoThetaChi" : ".//*Axis[@Name='TwoThetaChi']",
-            "Chi" : ".//*Axis[@Name='Chi']",
-            "Phi" : ".//*Axis[@Name='Phi']",
-            "Z" : ".//*Axis[@Name='Z']",
-            "Alpha" : ".//*Axis[@Name='Alpha']",
-            "Beta" : ".//*Axis[@Name='Beta']",
+            "Omega": ".//*Axis[@Name='Omega']",
+            "TwoTheta": ".//*Axis[@Name='TwoTheta']",
+            "TwoThetaTheta": ".//*Axis[@Name='TwoThetaTheta']",
+            "TwoThetaOmega": ".//*Axis[@Name='TwoThetaOmega']",
+            "TwoThetaChi": ".//*Axis[@Name='TwoThetaChi']",
+            "Chi": ".//*Axis[@Name='Chi']",
+            "Phi": ".//*Axis[@Name='Phi']",
+            "Z": ".//*Axis[@Name='Z']",
+            "Alpha": ".//*Axis[@Name='Alpha']",
+            "Beta": ".//*Axis[@Name='Beta']",
         }
         if self.hardware.attachment_head == "RxRy":
-            axis_query.update({
-            "Rx" : ".//*Axis[@Name='Rx']",
-            "Ry" : ".//*Axis[@Name='Ry']"
-            })
+            axis_query.update(
+                {"Rx": ".//*Axis[@Name='Rx']", "Ry": ".//*Axis[@Name='Ry']"}
+            )
         if self.hardware.attachment_head == "XY-4inch":
-            axis_query.update({
-                "X" : ".//*Axis[@Name='X']",
-                "Y" : ".//*Axis[@Name='Y']",
-            })
-        return {key : root.find(value).attrib for key, value in axis_query.items()}
-    
+            axis_query.update(
+                {
+                    "X": ".//*Axis[@Name='X']",
+                    "Y": ".//*Axis[@Name='Y']",
+                }
+            )
+        return {key: root.find(value).attrib for key, value in axis_query.items()}
+
     def _get_scan_information(self, root):
         scan_query = {
-            "axis" : ".//*AxisName",
-            "mode" : ".//*Mode",
-            "start_angle" : ".//*Start",
-            "end_angle" : ".//*Stop",
-            "step" : ".//*Step",
-            "resolution" : ".//Resolution",
-            "speed" : ".//Speed",
-            "speed_unit" : ".//SpeedUnit",
-            "axis_unit" : ".//PositionUnit",
-            "intensity_unit" : ".//IntensityUnit",
-            "start_time" : ".//StartTime",
-            "end_time" : ".//EndTime",
-            "unequally_spaced" : ".//UnequalySpaced",
-            "wavelength" : ".//WavelengthKalpha1"
+            "axis": ".//*AxisName",
+            "mode": ".//*Mode",
+            "start_angle": ".//*Start",
+            "end_angle": ".//*Stop",
+            "step": ".//*Step",
+            "resolution": ".//Resolution",
+            "speed": ".//Speed",
+            "speed_unit": ".//SpeedUnit",
+            "axis_unit": ".//PositionUnit",
+            "intensity_unit": ".//IntensityUnit",
+            "start_time": ".//StartTime",
+            "end_time": ".//EndTime",
+            "unequally_spaced": ".//UnequalySpaced",
+            "wavelength": ".//WavelengthKalpha1",
         }
-        scan_info = {key : root.find(value).text for key, value in scan_query.items()}
+        scan_info = {key: root.find(value).text for key, value in scan_query.items()}
 
         scan_info["start_angle"] = float(scan_info["start_angle"])
         scan_info["end_angle"] = float(scan_info["end_angle"])
         scan_info["step"] = float(scan_info["step"])
         scan_info["resolution"] = float(scan_info["resolution"])
         scan_info["speed"] = float(scan_info["speed"])
-        scan_info["start_time"] = datetime.datetime.strptime(scan_info["start_time"], '%Y-%m-%dT%H:%M:%SZ')
-        scan_info["end_time"] = datetime.datetime.strptime(scan_info["end_time"], '%Y-%m-%dT%H:%M:%SZ')
+        scan_info["start_time"] = datetime.datetime.strptime(
+            scan_info["start_time"], "%Y-%m-%dT%H:%M:%SZ"
+        )
+        scan_info["end_time"] = datetime.datetime.strptime(
+            scan_info["end_time"], "%Y-%m-%dT%H:%M:%SZ"
+        )
         if scan_info["unequally_spaced"] == "True":
             scan_info["unequally_spaced"] = True
         else:
@@ -1352,75 +1584,84 @@ class RigakuScanRASX:
 
     def _get_hardware_information(self, root):
         hardware_query = {
-            "gonio" : ".//*Category[@Name='Goniometer']",
-            "head" :  ".//*Category[@Name='AttachmentHead']",
-            "stage" : ".//*Category[@Name='AttachmentStage']",
-            "detector" : ".//*Category[@Name='Detector']",
-            "detector_mono" : ".//*Category[@Name='DetectorMonochromator']",
-            "rec_atten" : ".//*Category[@Name='ReceivingAttenuator']",
-            "incident_slit" : ".//*Axis[@Name='IS'][@Unit='mm']",
-            "receiving_slit_1" : ".//*Axis[@Name='RS1'][@Unit='mm']",
-            "receiving_slit_2" : ".//*Axis[@Name='RS2'][@Unit='mm']",
+            "gonio": ".//*Category[@Name='Goniometer']",
+            "head": ".//*Category[@Name='AttachmentHead']",
+            "stage": ".//*Category[@Name='AttachmentStage']",
+            "detector": ".//*Category[@Name='Detector']",
+            "detector_mono": ".//*Category[@Name='DetectorMonochromator']",
+            "rec_atten": ".//*Category[@Name='ReceivingAttenuator']",
+            "incident_slit": ".//*Axis[@Name='IS'][@Unit='mm']",
+            "receiving_slit_1": ".//*Axis[@Name='RS1'][@Unit='mm']",
+            "receiving_slit_2": ".//*Axis[@Name='RS2'][@Unit='mm']",
         }
-        return RigakuHardware({key : root.find(value).attrib for key, value in hardware_query.items()})
+        return RigakuHardware(
+            {key: root.find(value).attrib for key, value in hardware_query.items()}
+        )
 
     def _get_scan_metadata(self, root):
         metadata_query = {
-            "sample_name" : "*.//SampleName",
-            "comment" : "*.//Comment",
-            "measurement_package_name" : "*.//PackageName",
-            "measurement_part_name" : "*.//PartName",
-            "data_type" : "*.//DataType",
+            "sample_name": "*.//SampleName",
+            "comment": "*.//Comment",
+            "measurement_package_name": "*.//PackageName",
+            "measurement_part_name": "*.//PartName",
+            "data_type": "*.//DataType",
         }
-        return {key : root.find(value).text if root.find(value) is not None else None for key, value in metadata_query.items()}
+        return {
+            key: root.find(value).text if root.find(value) is not None else None
+            for key, value in metadata_query.items()
+        }
 
     def _get_RSM_metadata(self, root):
         rsm_query = {
-            "scan_relative" : ".//*ScanIsRelative",
-            "step_relative" : ".//*StepIsRelative",
-            "scan_axis_start" : ".//*ScanAxisStart",
-            "scan_axis_stop" : ".//*ScanAxisStop",
-            "scan_axis_step" : ".//*ScanAxisStep",
-            "step_axis_name" : ".//*StepAxisName",
-            "step_axis_start" : ".//*StepAxisStart",
-            "step-axis_stop" : ".//*StepAxisStop",
-            "step_axis_step" : ".//*StepAxisStep",
-            "two_theta_origin" : ".//*TwoThetaOrigin",
-            "omega_origin" : ".//*OmegaOrigin",
-            "chi_origin" : ".//*ChiOrigin",
-            "phi_origin" : ".//*PhiOrigin",
-            "two_theta_chi_origin" : ".//*TwoThetaChiOrigin",
+            "scan_relative": ".//*ScanIsRelative",
+            "step_relative": ".//*StepIsRelative",
+            "scan_axis_start": ".//*ScanAxisStart",
+            "scan_axis_stop": ".//*ScanAxisStop",
+            "scan_axis_step": ".//*ScanAxisStep",
+            "step_axis_name": ".//*StepAxisName",
+            "step_axis_start": ".//*StepAxisStart",
+            "step-axis_stop": ".//*StepAxisStop",
+            "step_axis_step": ".//*StepAxisStep",
+            "two_theta_origin": ".//*TwoThetaOrigin",
+            "omega_origin": ".//*OmegaOrigin",
+            "chi_origin": ".//*ChiOrigin",
+            "phi_origin": ".//*PhiOrigin",
+            "two_theta_chi_origin": ".//*TwoThetaChiOrigin",
         }
         try:
-            d = {key : root.find(value).text for key, value in rsm_query.items()}
+            d = {key: root.find(value).text for key, value in rsm_query.items()}
         except:
             raise TypeError("Scan is not part of reciprocal space map!")
-        
+
         # Convert true/false values to boolean
         if d["scan_relative"] == "false":
             d["scan_relative"] = False
-        else: 
+        else:
             d["scan_relative"] = True
         if d["step_relative"] == "false":
             d["step_relative"] = False
-        else: 
+        else:
             d["step_relative"] = True
-        
+
         return d
 
     def x(self, xlim=None):
         x = self.scan[self.scan_information["axis"]]
         if not xlim:
-            xlim=(-np.inf,np.inf)
-        return x[x.between(xlim[0], xlim[1])]  #x.values[x.values>x.iloc[xlim[0]]:x.values<x.iloc[xlim[1]]]
-    
+            xlim = (-np.inf, np.inf)
+        return x[
+            x.between(xlim[0], xlim[1])
+        ]  # x.values[x.values>x.iloc[xlim[0]]:x.values<x.iloc[xlim[1]]]
+
     def y(self, xlim=None):
         x = self.scan[self.scan_information["axis"]]
         y = self.scan["intensity"]
         if not xlim:
-            xlim=(-np.inf,np.inf)
-        return y[x.between(xlim[0], xlim[1])] #y.values[x.values>xlim[0]:x.values<xlim[1]]
-    
+            xlim = (-np.inf, np.inf)
+        return y[
+            x.between(xlim[0], xlim[1])
+        ]  # y.values[x.values>xlim[0]:x.values<xlim[1]]
+
 
 def ras_file(file):
     """
@@ -1430,37 +1671,39 @@ def ras_file(file):
     ----------
     file    :   str
         Filepath to the .ras 1D file
-    
+
     Returns
     ----------
     d   :   dict
         Dictionary with relevant information about the .ras file to plot
         the data.
-    
+
     """
 
     # Read RAS data to object
     ras_file = xu.io.rigaku_ras.RASFile(file)
 
     d = {
-        "scan_axis" : ras_file.scans[0].scan_axis,
-        "step_size" : ras_file.scans[0].meas_step,
-        "speed"     : ras_file.scans[0].meas_speed,
-        "length"    : ras_file.scans[0].length,
+        "scan_axis": ras_file.scans[0].scan_axis,
+        "step_size": ras_file.scans[0].meas_step,
+        "speed": ras_file.scans[0].meas_speed,
+        "length": ras_file.scans[0].length,
     }
-    
+
     # Read raw motor position and intensity data to large 1D arrays
-    
-    ax1, data = xu.io.getras_scan(ras_file.filename+'%s', '', d["scan_axis"])
-    
+
+    ax1, data = xu.io.getras_scan(ras_file.filename + "%s", "", d["scan_axis"])
+
     d["counts"] = np.array(data["int"]) * np.array(data["att"])
     d["2theta"] = np.array(data["TwoThetaOmega"])
-    
-    
+
     # Read omega data from motor positions at the start of each 2theta-Omega scan
-    d["omega"] = np.array([ras_file.scans[i].init_mopo['Omega'] for i in range(len(ras_file.scans))])
+    d["omega"] = np.array(
+        [ras_file.scans[i].init_mopo["Omega"] for i in range(len(ras_file.scans))]
+    )
 
     return d
+
 
 def xrdml_file(file, data_dir="."):
     """
@@ -1480,10 +1723,9 @@ def xrdml_file(file, data_dir="."):
             - 2theta
             - omega
             - int
-            - 
+            -
     """
     xrdml_file = xu.io.XRDMLFile(file, path=data_dir)
     d = xrdml_file.scan.ddict
 
     return d
-
