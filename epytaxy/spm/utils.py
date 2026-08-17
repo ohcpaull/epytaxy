@@ -464,17 +464,24 @@ def plot_map(
                     type(vector)
                 )
             )
-        if np.max(np.abs(vector)) == np.max(vector):
-            exponent = np.log10(np.max(vector))
-        else:
-            # negative values
-            exponent = np.log10(np.max(np.abs(vector)))
+        finite = vector[np.isfinite(vector)]
+        largest = np.max(np.abs(finite)) if finite.size else 0.0
 
-        y_exp = int(np.floor(exponent))
         z_suffix = ""
-        if y_exp < -2 or y_exp > 3:
-            img = np.squeeze(img) / 10**y_exp
-            z_suffix = " x $10^{" + str(y_exp) + "}$"
+        if largest > 0:
+            y_exp = int(np.floor(np.log10(largest)))
+            if y_exp < -2 or y_exp > 3:
+                img = np.squeeze(img) / 10**y_exp
+                z_suffix = " x $10^{" + str(y_exp) + "}$"
+                # The colour limits refer to the unscaled data, so they have to
+                # follow the image or the contrast is wrong.
+                for limit in ("vmin", "vmax"):
+                    if kwargs.get(limit) is not None:
+                        kwargs[limit] = kwargs[limit] / 10**y_exp
+                if kwargs.get("clim") is not None:
+                    kwargs["clim"] = [
+                        value / 10**y_exp for value in kwargs["clim"]
+                    ]
 
     assert isinstance(show_xy_ticks, bool)
 
@@ -533,10 +540,7 @@ def plot_map(
         tick_labs_set_func(tick_labs)
 
         if tick_font_size is not None:
-            for tick in axis.xaxis.get_major_ticks():
-                tick.label.set_fontsize(tick_font_size)
-            for tick in axis.yaxis.get_major_ticks():
-                tick.label.set_fontsize(tick_font_size)
+            axis.tick_params(axis="both", labelsize=tick_font_size)
 
         return tick_vals
 
@@ -592,7 +596,7 @@ def plot_map(
             if not isinstance(cbar_label, str):
                 raise TypeError("cbar_label should be a string")
 
-            if tick_font_size is not None:
+            if tick_font_size is None:
                 cbar.set_label(cbar_label + z_suffix)
             else:
                 cbar.set_label(cbar_label + z_suffix, fontsize=tick_font_size)
@@ -635,13 +639,18 @@ def get_2DFFT(image):
     Parameters
     ----------
     image       :   np.array of shape (M,N)
-        M rows in image, and N columns
+        M rows in image, and N columns. A `Channel` or anything else that
+        converts to a 2D array is also accepted.
 
     Returns
     ----------
     fft_image   :   Fourier transform of input image
+
+    See Also
+    --------
+    epytaxy.spm.SPMScan.fft : adds the transform to a scan as a new channel.
     """
-    image_raw = image.get_n_dim_form().squeeze()
+    image_raw = np.squeeze(np.asarray(image))
     fft_image = np.fft.fft2(image_raw)
 
     fft_image = np.fft.fftshift(fft_image)
