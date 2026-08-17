@@ -1,0 +1,39 @@
+[project]
+name = "epytaxy"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "h5py>=3.16.0",
+    "igor2>=0.5.10",
+    "imageio>=2.37.4",
+    "ipykernel>=7.3.0",
+    "ipywidgets>=8.0",
+    "lmfit>=1.3",
+    "matplotlib>=3.10.9",
+    "pandas>=2.3.3",
+    "pyspm>=0.6.3",
+    "scifireaders>=0.12.7",
+    "scikit-image>=0.25.2",
+    "seaborn>=0.13.2",
+    "tifffile>=2025.5.10",
+    "tqdm>=4.70.0",
+    "xarray>=2025.6.1",
+    "xrayutilities>=1.8.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+# The package lives at the repository root, not under src/.
+[tool.uv.build-backend]
+module-root = ""
+module-name = "epytaxy"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["epytaxy"]
