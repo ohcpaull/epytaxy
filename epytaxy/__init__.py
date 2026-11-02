@@ -1,23 +1,3 @@
-from .spm import plot_map
-from .xray import ReciprocalSpaceMap
-from .neutron import TaipanNexus, basename_datafile, number_datafile, datafile_number
-
-from epytaxy.spm.utils import(
-    gaussian,
-    skewed_gauss,
-    rayleigh,
-    exp_dist,
-    lorentz,
-    line,
-    parabola,
-    second_poly,
-    cubic,
-    exp,
-    log,
-    sine,
-    cosine,
-)
-
 try:
     from epytaxy.version import version as __version__
 except ImportError:

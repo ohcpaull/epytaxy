@@ -9,9 +9,6 @@ import string
 import warnings
 from contextlib import contextmanager
 from operator import attrgetter
-from numpy.lib.function_base import average
-from scipy.optimize import leastsq, curve_fit
-from scipy.stats import t
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
