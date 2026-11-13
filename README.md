@@ -5,16 +5,26 @@ epytaxy
 
 epytaxy is a python software package to read and analyse datafiles that is typically seen in epitaxial thin film research. This includes instruments within our lab, other specialised labs we access, as well as national research infrastructure. The package is split into 3 sections:
 
-1. Scanning probe microscopy `epytaxy.spm`
+1. Electron scattering `epytaxy.electron`
+    - Pattern analysis `epytaxy.electron.RHEED.RHEEDPattern`
+    - Oscillation analysis `epytaxy.electron.RHEED.RHEEDOscillation`
+    - Spin-resolved Angle-resolved Photoelectron Emission Spectroscopy (sARPES) `epytaxy.electron.RHEED.ARPESMap`
+2.  Neutron scattering `epytaxy.neutron`
+    - TAIPAN triple-axis spectrometer `epytaxy.neutron.taipan.TaipanNexus`, `epytaxy.neutron.taipan.TaipanRSM`
+    - NIST triple-axis spectrometer `epytaxy.neutron.nist.NIST_TripleAxis`, `epytaxy.neutron.nist.NIST_RSM`
+3. Spectroscopy `epytaxy.spec`
+    - X-ray Photoelectron Spectroscopy `epytaxy.spec.spectroscopy.XPSpec`
+    - Ultraviolet spectroscopy `epytaxy.spec.spectroscopy.UVSPec`
+    - Terahertz Emission Spectroscopy `epytaxy.spec.spectroscopy.THz` 
+3. Scanning probe microscopy `epytaxy.spm`
     - Asylum Cypher single-frequency piezoresponse force microscopy (PFM) `epytaxy.spm.AsylumSF`
     - Asylum Cypher Dual-Amplitude Resonance Tracking (DART) PFM `epytaxy.spm.AsylumDART`
     - Bruker multimode AFM and PFM 
-2. X-ray scattering `epytaxy.xray`
+4. X-ray scattering for Rigaku, Bruker, and PANAlytical machines `epytaxy.xray`
     - X-ray reflectometry (XRR) `epytaxy.xray.reduce_xray`
-    - X-ray diffraction line-scan (XRD) `epytaxy.xray.ras_file`, `epytaxy.xray.xrdml_file`
-    - X-ray reciprocal space map (RSM)  `epytaxy.xray.ReciprocalSpaceMap`
-3.  Neutron scattering `epytaxy.neutron`
-    - TAIPAN triple-axis spectrometer `epytaxy.neutron.TaipanNexus`, `epytaxy.neutron.TaipanRSM`
+    - X-ray diffraction line-scan (XRD) `epytaxy.xray.xrd.ras_file`, `epytaxy.xray.xrd.RigakuScanRASX`, `epytaxy.xray.xrd.xrdml_file`
+    - X-ray reciprocal space map (RSM)  `epytaxy.xray.xrd.ReciprocalSpaceMap`
+
 
 # Installing epytaxy from git
 <img align="right" width="300" src="https://firstcontributions.github.io/assets/Readme/fork.png" alt="fork this repository" />
